@@ -110,6 +110,18 @@
     min-height:48px;overflow:hidden;}
   .note-ta::placeholder{color:var(--muted);}
 
+  /* aufklappbare Tag-Notizen in der Liste */
+  .day-wrap{display:flex;flex-direction:column;animation:rise .4s ease both;}
+  .day-wrap .row{cursor:pointer;animation:none;}
+  .row .chev{color:var(--muted);font-size:20px;line-height:1;margin-left:2px;flex-shrink:0;transition:.15s;}
+  .row.open .chev{color:var(--accent);}
+  .row .noteflag{color:var(--accent);font-size:13px;flex-shrink:0;opacity:.9;}
+  .row.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent;}
+  .note-panel{background:var(--surface);border:1px solid var(--line);border-top:none;
+    border-radius:0 0 15px 15px;padding:4px 16px 14px;animation:rise .2s ease both;}
+  .note-panel .plabel{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
+    font-weight:700;margin-bottom:6px;}
+
   .adjust{width:100%;margin-bottom:24px;background:transparent;border:1px dashed var(--line);
     color:var(--muted);padding:11px;border-radius:14px;font-family:inherit;font-size:12.5px;
     font-weight:500;cursor:pointer;transition:.2s;}
@@ -190,7 +202,7 @@ function defaultPlan(){
 }
 function defaultState(){ const p=defaultPlan(); return {plans:[p], activePlanId:p.id, notes:{}}; }
 
-let state=null, editing=false;
+let state=null, editing=false, openNoteIdx=-1;
 const WEEKDAYS=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 const MONTHS=['Jan','Feb','M\u00e4rz','Apr','Mai','Juni','Juli','Aug','Sep','Okt','Nov','Dez'];
 
@@ -211,6 +223,8 @@ function typeOf(name){
 }
 
 function activePlan(){ return state.plans.find(p=>p.id===state.activePlanId)||state.plans[0]; }
+function getNote(i){ const p=activePlan(); return (p.dayNotes&&p.dayNotes[i])||''; }
+function setNote(i,v){ const p=activePlan(); if(!p.dayNotes) p.dayNotes={}; p.dayNotes[i]=v; save(); }
 function getType(i){
   const p=activePlan();
   return (p.cycleTypes&&p.cycleTypes[i])||typeOf(p.cycle[i]);
@@ -250,6 +264,7 @@ async function load(){
   }
   if(!state) state=defaultState();
   if(!state.notes) state.notes={};
+  state.plans.forEach(p=>{ if(!p.dayNotes||typeof p.dayNotes!=='object') p.dayNotes={}; });
 }
 async function save(){ try{ await storageSet(STORE_KEY,JSON.stringify(state)); }catch(e){} }
 
@@ -262,7 +277,7 @@ function render(){
   const tType=getType(idx);
   const now=new Date(), iso=todayISO();
   const dateStr=WEEKDAYS[now.getDay()]+', '+now.getDate()+'. '+MONTHS[now.getMonth()];
-  const noteVal=state.notes[iso]||'';
+  const noteVal=getNote(idx);
 
   const tabs=state.plans.map(p=>
     `<button class="plantab${p.id===state.activePlanId?' active':''}" onclick="switchPlan('${p.id}')">${escapeHtml(short(p.name,16))}</button>`
@@ -285,7 +300,7 @@ function render(){
     </div>
 
     <div class="note-box">
-      <div class="note-label">&#9998;&nbsp; Tages-Notiz</div>
+      <div class="note-label">&#9998;&nbsp; Notiz \u00b7 Tag ${len?idx+1:0} (heute)</div>
       <textarea class="note-ta" placeholder="Wie war das Training heute? Kurze Notiz hier..." oninput="updateNote(this.value)">${escapeHtml(noteVal)}</textarea>
     </div>
 
@@ -316,8 +331,7 @@ function render(){
     <div class="foot">Daten werden automatisch gespeichert<br>Im Browser \u2192 \u201eZum Startbildschirm\u201c = echtes App-Symbol</div>
   `;
 
-  const ta=app.querySelector('.note-ta');
-  if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
+  app.querySelectorAll('.note-ta').forEach(ta=>{ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
 }
 
 function rowHtml(u,i,idx){
@@ -334,18 +348,29 @@ function rowHtml(u,i,idx){
     </div>`;
   }
   const today=i===idx;
-  return `<div class="row ${today?'today':''}">
-    <div class="num">${i+1}</div>
-    <div class="tdot ${t}"></div>
-    <div class="name">${escapeHtml(u)}</div>
-    ${today?'<div class="now">HEUTE</div>':''}
+  const note=getNote(i);
+  const hasNote=note.trim().length>0;
+  const open=openNoteIdx===i;
+  return `<div class="day-wrap">
+    <div class="row ${today?'today':''} ${open?'open':''}" onclick="toggleNote(${i})">
+      <div class="num">${i+1}</div>
+      <div class="tdot ${t}"></div>
+      <div class="name">${escapeHtml(u)}</div>
+      ${hasNote&&!open?'<div class="noteflag">\u270e</div>':''}
+      ${today?'<div class="now">HEUTE</div>':''}
+      <div class="chev">${open?'\u00d7':'\u203a'}</div>
+    </div>
+    ${open?`<div class="note-panel">
+      <div class="plabel">\u270e Notiz \u00b7 Tag ${i+1}</div>
+      <textarea class="note-ta day-note-ta" placeholder="Notiz f\u00fcr diese Einheit..." oninput="updateDayNote(${i},this.value)">${escapeHtml(note)}</textarea>
+    </div>`:''}
   </div>`;
 }
 
 /* actions */
-function toggleEdit(){ editing=!editing; render(); }
+function toggleEdit(){ editing=!editing; openNoteIdx=-1; render(); }
 function togglePicker(){ document.getElementById('picker').classList.toggle('show'); }
-function switchPlan(id){ state.activePlanId=id; editing=false; save(); render(); }
+function switchPlan(id){ state.activePlanId=id; editing=false; openNoteIdx=-1; save(); render(); }
 function addPlan(){
   const p={id:makeId(),name:'Neuer Plan',cycle:['Einheit 1'],anchorISO:todayISO(),anchorDay:1};
   state.plans.push(p); state.activePlanId=p.id; editing=true; save(); render();
@@ -374,6 +399,12 @@ function delUnit(i){
   if(p.cycle.length<=1) return;
   p.cycle.splice(i,1);
   if(p.cycleTypes) p.cycleTypes.splice(i,1);
+  if(p.dayNotes){
+    const nn={};
+    Object.keys(p.dayNotes).forEach(k=>{ const ki=+k;
+      if(ki<i) nn[ki]=p.dayNotes[k]; else if(ki>i) nn[ki-1]=p.dayNotes[k]; });
+    p.dayNotes=nn;
+  }
   if(p.anchorDay>p.cycle.length) p.anchorDay=1;
   save(); render();
 }
@@ -388,11 +419,25 @@ function move(i,dir){
   if(j<0||j>=c.length) return;
   [c[i],c[j]]=[c[j],c[i]];
   if(p.cycleTypes) [p.cycleTypes[i],p.cycleTypes[j]]=[p.cycleTypes[j],p.cycleTypes[i]];
+  if(!p.dayNotes) p.dayNotes={};
+  const tmp=p.dayNotes[i];
+  if(p.dayNotes[j]!==undefined) p.dayNotes[i]=p.dayNotes[j]; else delete p.dayNotes[i];
+  if(tmp!==undefined) p.dayNotes[j]=tmp; else delete p.dayNotes[j];
   save(); render();
 }
 function updateNote(v){
-  state.notes[todayISO()]=v; save();
-  const ta=document.querySelector('.note-ta');
+  setNote(currentIndex(), v);
+  const ta=document.querySelector('.note-box .note-ta');
+  if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
+}
+function toggleNote(i){
+  if(editing) return;
+  openNoteIdx = (openNoteIdx===i) ? -1 : i;
+  render();
+}
+function updateDayNote(i,v){
+  setNote(i,v);
+  const ta=document.querySelector('.day-note-ta');
   if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; }
 }
 
