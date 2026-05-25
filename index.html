@@ -116,6 +116,24 @@
     font-family:inherit;font-size:11px;font-weight:600;padding:5px 10px;border-radius:9px;cursor:pointer;letter-spacing:.3px;}
   .tplbtn:active{background:var(--line);}
 
+  /* cardio log */
+  .cardio-grid{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
+  .cardio-unit{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:13px 14px;}
+  .cardio-unit .cu-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .cardio-unit .cu-name{font-size:13px;font-weight:600;flex:1;}
+  .cardio-unit .cu-done{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line);
+    background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;flex-shrink:0;}
+  .cardio-unit .cu-done.on{background:var(--accent);border-color:var(--accent);color:#0c0c0e;}
+  .cardio-fields{display:flex;gap:8px;}
+  .cfield{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .cfield label{font-size:10px;color:var(--muted);letter-spacing:.5px;}
+  .cfield input{background:var(--bg);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:8px 10px;font-family:inherit;font-size:15px;outline:none;width:100%;}
+  .cfield input:focus{border-color:var(--accent);}
+  .pulse-row{display:flex;gap:8px;margin-top:4px;}
+  .pulse-row .cfield label{color:var(--pull);}
+  .pulse-row .cfield input:focus{border-color:var(--pull);}
+
   .day-wrap{display:flex;flex-direction:column;animation:rise .4s ease both;}
   .day-wrap .row{cursor:pointer;animation:none;}
   .row .chev{color:var(--muted);font-size:20px;line-height:1;margin-left:2px;flex-shrink:0;transition:.15s;}
@@ -413,9 +431,8 @@ function renderToday(){
     </button>
 
     ${isDone?`<div class="note-box">
-      <div class="note-label"><span>${isRest?'\ud83d\udeb4 Cardio-Log (heute)':'\ud83d\udcdd Session-Log (heute)'}</span>
-      ${isRest?`<button class="tplbtn" onclick="insertCardioTpl()">Vorlage einf\u00fcgen</button>`:''}</div>
-      <textarea class="note-ta" placeholder="${isRest?'z.B. Dauer, Ger\u00e4te, Pulsbereich...':'Wie lief die Session heute?'}" oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
+      <div class="note-label"><span>${isRest?'\ud83d\udeb4 Cardio-Log (heute)':'\ud83d\udcdd Session-Log (heute)'}</span></div>
+      ${isRest ? cardioLogHtml(logEntry) : `<textarea class="note-ta" placeholder="Wie lief die Session heute?" oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>`}
     </div>`:''}
 
     <div class="note-box">
@@ -483,6 +500,72 @@ function rowHtml(u,i,idx){
   </div>`;
 }
 
+/* ============ CARDIO LOG ============ */
+const CARDIO_UNITS=[
+  {key:'lauf1', name:'Laufband 1', icon:'\ud83c\udfc3'},
+  {key:'bike',  name:'Fahrrad',    icon:'\ud83d\udeb4'},
+  {key:'lauf2', name:'Laufband 2', icon:'\ud83c\udfc3'},
+];
+
+function cardioLogHtml(entry){
+  const cd=entry.cardio||{};
+  const units=CARDIO_UNITS.map(u=>{
+    const d=cd[u.key]||{};
+    const on=!!d.done;
+    return `<div class="cardio-unit">
+      <div class="cu-head">
+        <span>${u.icon}</span>
+        <span class="cu-name">${u.name}</span>
+        <button class="cu-done ${on?'on':''}" onclick="toggleCardioUnit('${u.key}')">\u2713</button>
+      </div>
+      <div class="cardio-fields">
+        <div class="cfield"><label>DAUER (min)</label>
+          <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
+            value="${d.min!=null?d.min:''}" oninput="saveCardio('${u.key}','min',this.value)"></div>
+      </div>
+      <div class="pulse-row">
+        <div class="cfield"><label>\u2665 \u00d8-PULS (bpm)</label>
+          <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
+            value="${d.avgPulse!=null?d.avgPulse:''}" oninput="saveCardio('${u.key}','avgPulse',this.value)"></div>
+        <div class="cfield"><label>\u2665 MAX-PULS (bpm)</label>
+          <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
+            value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${u.key}','maxPulse',this.value)"></div>
+      </div>
+    </div>`;
+  }).join('');
+  const note=(entry.cardioNote||'');
+  return `<div class="cardio-grid">${units}</div>
+    <div class="cfield" style="margin-top:2px;">
+      <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
+      <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute Zone 2 super gehalten..." oninput="updateCardioNote(this.value)">${escapeHtml(note)}</textarea>
+    </div>`;
+}
+
+function getLogToday(){
+  const iso=todayISO();
+  if(!state.log[iso]) state.log[iso]={};
+  return state.log[iso];
+}
+function toggleCardioUnit(key){
+  const e=getLogToday();
+  if(!e.cardio) e.cardio={};
+  if(!e.cardio[key]) e.cardio[key]={};
+  e.cardio[key].done=!e.cardio[key].done;
+  save(); render();
+}
+function saveCardio(key,field,val){
+  const e=getLogToday();
+  if(!e.cardio) e.cardio={};
+  if(!e.cardio[key]) e.cardio[key]={};
+  const n=val===''?null:parseInt(val,10);
+  e.cardio[key][field]=(n!=null&&!isNaN(n))?n:null;
+  save();
+}
+function updateCardioNote(v){
+  const e=getLogToday(); e.cardioNote=v; save();
+  autoresize('.note-ta');
+}
+
 /* ============ HISTORY VIEW ============ */
 function unitForISO(iso){
   const e=state.log[iso];
@@ -506,11 +589,26 @@ function renderHistory(){
     const done=!!e.done;
     if(done) doneCount++;
     const isToday=iso===todayIso;
-    const cardio=(e.sessionNote||'').trim();
+    // build summary line
+    let summaryHtml='';
+    if(done){
+      const t=info.type;
+      if(t==='rest'&&e.cardio){
+        const parts=CARDIO_UNITS.filter(u=>e.cardio[u.key]&&e.cardio[u.key].done).map(u=>{
+          const d=e.cardio[u.key]; let s=u.name;
+          if(d.min) s+=` ${d.min}min`;
+          if(d.avgPulse) s+=` \u00d8${d.avgPulse}`;
+          return s;
+        });
+        if(parts.length) summaryHtml=`<div class="hcardio">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
+      } else if(e.sessionNote){
+        summaryHtml=`<div class="hcardio">${escapeHtml(short(e.sessionNote.replace(/\n/g,' \u00b7 '),60))}</div>`;
+      }
+    }
     rows+=`<div class="hrow ${done?'done':''}">
       <div class="hdate"><div class="d">${d.getDate()}</div><div class="m">${MONTHS[d.getMonth()]}</div><div class="hwd">${WD_SHORT[d.getDay()]}</div></div>
       <div class="tdot ${info.type}"></div>
-      <div class="hunit">${escapeHtml(info.unit)}${isToday?' &nbsp;<span class="htoday">HEUTE</span>':''}${cardio?`<div class="hcardio">${escapeHtml(short(cardio.replace(/\n/g,' \u00b7 '),60))}</div>`:''}</div>
+      <div class="hunit">${escapeHtml(info.unit)}${isToday?' &nbsp;<span class="htoday">HEUTE</span>':''}${summaryHtml}</div>
       <div class="hcheck">\u2713</div>
     </div>`;
   }
