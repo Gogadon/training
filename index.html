@@ -216,6 +216,33 @@
   .note-panel .plabel{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
     font-weight:700;margin-bottom:6px;}
 
+  /* Einschub (Sonderereignis) */
+  .insert-hero .label{color:var(--push)!important;}
+  .insert-banner{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--push);
+    border-radius:14px;padding:12px 14px;margin-bottom:14px;animation:rise .4s ease both;}
+  .insert-banner .ib-icon{font-size:20px;flex-shrink:0;}
+  .insert-banner .ib-text{flex:1;}
+  .insert-banner .ib-name{font-size:14px;font-weight:600;color:var(--push);}
+  .insert-banner .ib-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .insert-form{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 18px;margin-bottom:14px;animation:rise .4s ease both;}
+  .insert-form .if-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:12px;}
+  .insert-form .if-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;}
+  .insert-form .if-field{flex:1;min-width:120px;display:flex;flex-direction:column;gap:5px;}
+  .insert-form .if-field label{font-size:11px;color:var(--muted);}
+  .insert-form .if-field input{background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:11px;padding:11px 12px;font-family:inherit;font-size:14px;outline:none;width:100%;}
+  .insert-form .if-field input:focus{border-color:var(--push);}
+  .insert-form .if-field input[type=date]{color-scheme:dark;}
+  .if-savebtn{background:var(--push);color:#fff;border:none;border-radius:11px;padding:11px 16px;
+    font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;margin-top:16px;width:100%;}
+  .if-savebtn:active{transform:scale(.96);}
+  .irow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+    border-radius:13px;padding:11px 14px;margin-bottom:7px;animation:rise .3s ease both;}
+  .irow .idate{font-size:11.5px;color:var(--muted);min-width:80px;}
+  .irow .iname{flex:1;font-size:14px;font-weight:500;color:var(--push);}
+  .irow .iinfo{font-size:10.5px;color:var(--muted);}
+
   .adjust{width:100%;margin-bottom:24px;background:transparent;border:1px dashed var(--line);
     color:var(--muted);padding:11px;border-radius:14px;font-family:inherit;font-size:12.5px;
     font-weight:500;cursor:pointer;transition:.2s;}
@@ -506,13 +533,35 @@ function lastSessionFor(unitName,exId){
   }
   return null;
 }
-function indexForISO(iso){
+/* --- Dynamische Zyklus-Berechnung ---
+   Läuft von anchorISO bis gestern durch und rückt nur vor wenn:
+   - Krafttag: abgehakt (done)
+   - Restday: immer (auch wenn nicht abgehakt)
+   - Einschub-Tag: nie (Zyklus wartet)
+*/
+function calcIndexUpTo(untilISO){
   const p=activePlan(), len=p.cycle.length;
   if(!len) return 0;
-  const d=diffDays(iso, p.anchorISO);
-  return (((p.anchorDay-1+d)%len)+len)%len;
+  const inserts=state.inserts||{};
+  let pos=p.anchorDay-1;
+  const anchor=isoToDate(p.anchorISO);
+  const until=isoToDate(untilISO);
+  // walk from anchorISO up to (but not including) untilISO
+  for(let d=new Date(anchor); d<until; d.setDate(d.getDate()+1)){
+    const iso=isoOf(d);
+    if(inserts[iso]){ continue; } // Einschub: Zyklus wartet
+    const t=(p.cycleTypes&&p.cycleTypes[pos%len])||typeOf(p.cycle[pos%len]);
+    if(t==='rest'){
+      pos++; // Restday: immer weiter
+    } else {
+      const e=state.log&&state.log[iso];
+      if(e&&e.done) pos++; // Krafttag: nur weiter wenn abgehakt
+    }
+  }
+  return ((pos%len)+len)%len;
 }
-function currentIndex(){ return indexForISO(todayISO()); }
+function indexForISO(iso){ return calcIndexUpTo(iso); }
+function currentIndex(){ return calcIndexUpTo(todayISO()); }
 
 /* storage */
 const mem={};
@@ -549,6 +598,7 @@ async function load(){
   if(!state) state=defaultState();
   if(!state.log) state.log={};
   if(!Array.isArray(state.weight)) state.weight=[];
+  if(!state.inserts) state.inserts={};
   state.plans.forEach(p=>{ if(!p.dayNotes||typeof p.dayNotes!=='object') p.dayNotes={}; if(!p.exercises||typeof p.exercises!=='object') p.exercises={}; });
 }
 async function save(){ try{ await storageSet(STORE_KEY,JSON.stringify(state)); }catch(e){} }
@@ -574,10 +624,12 @@ function header(){
 /* ============ TODAY VIEW ============ */
 function renderToday(){
   const plan=activePlan(), len=plan.cycle.length;
+  const iso=todayISO();
+  const todayInsert=(state.inserts||{})[iso];
   const idx=currentIndex();
   const todayUnit=len?plan.cycle[idx]:'\u2014';
   const tType=getType(idx);
-  const now=new Date(), iso=todayISO();
+  const now=new Date();
   const dateStr=WEEKDAYS[now.getDay()]+', '+now.getDate()+'. '+MONTHS[now.getMonth()];
   const noteVal=getNote(idx);
   const logEntry=state.log[iso]||{};
@@ -589,30 +641,66 @@ function renderToday(){
     `<button class="plantab${p.id===state.activePlanId?' active':''}" onclick="switchPlan('${p.id}')">${escapeHtml(short(p.name,16))}</button>`
   ).join('');
 
+  // Hero: Einschub oder normaler Tag
+  const heroContent=todayInsert
+    ?`<div class="glow"></div>
+      <div class="label" style="color:var(--push)">Sonder-Einheit heute</div>
+      <div class="weekday">${dateStr}</div>
+      <div class="unit" style="font-size:clamp(32px,10vw,52px)">${escapeHtml(todayInsert.label)}</div>
+      <div class="daybadge">Zyklus wartet \u00b7 morgen: <b>${escapeHtml(short(todayUnit,18))}</b></div>`
+    :`<div class="glow"></div>
+      <div class="label">Heute trainierst du</div>
+      <div class="weekday">${dateStr}</div>
+      <div class="unit">${escapeHtml(todayUnit)}</div>
+      <div class="daybadge">Tag <b>${len?idx+1:0}</b> von <b>${len}</b> im Zyklus</div>`;
+
+  // Upcoming inserts (nächste 14 Tage)
+  const upcoming=upcomingInserts(14);
+  const upcomingHtml=upcoming.length?`<div style="margin-bottom:14px;">
+    ${upcoming.map(e=>{
+      const d=isoToDate(e.date);
+      return `<div class="irow">
+        <div class="idate">${WD_SHORT[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}</div>
+        <div class="iname">${escapeHtml(e.label)}</div>
+        <div class="iinfo">${e.date===iso?'HEUTE':''}${e.shifting?' \u2022 Zyklus wartet':''}</div>
+        <button class="iconbtn del" onclick="removeInsert('${e.date}')">\u2715</button>
+      </div>`;
+    }).join('')}
+  </div>`:'';
+
   return `
     ${header()}
     <div class="plantabs">${tabs}<button class="plantab add" onclick="addPlan()">+</button></div>
 
-    <div class="hero" data-type="${tType}">
-      <div class="glow"></div>
-      <div class="label">Heute trainierst du</div>
-      <div class="weekday">${dateStr}</div>
-      <div class="unit">${escapeHtml(todayUnit)}</div>
-      <div class="daybadge">Tag <b>${len?idx+1:0}</b> von <b>${len}</b> im Zyklus</div>
+    <div class="hero${todayInsert?' insert-hero':''}" data-type="${todayInsert?'other':tType}">
+      ${heroContent}
     </div>
 
     <button class="donebtn ${isDone?'done':''}" onclick="toggleDone()">
       <span class="bx">${isDone?'\u2713':'\u25cb'}</span>${isDone?'Heute erledigt':'Als erledigt markieren'}
     </button>
 
-    ${isDone?`<div class="note-box">
+    ${isDone&&!todayInsert?`<div class="note-box">
       <div class="note-label"><span>${isRest?'\ud83d\udeb4 Cardio-Log (heute)':'\ud83c\udfcb\ufe0f Session \u00b7 '+escapeHtml(short(todayUnit,20))}</span></div>
       ${isRest ? cardioLogHtml(logEntry) : sessionExercisesHtml(idx,todayUnit,sessionNote)}
     </div>`:''}
 
-    <div class="note-box">
+    ${!todayInsert?`<div class="note-box">
       <div class="note-label"><span>&#9998;&nbsp; Plan-Notiz \u00b7 Tag ${len?idx+1:0}</span></div>
       <textarea class="note-ta" placeholder="Feste Notiz zu dieser Einheit..." oninput="updateNote(this.value)">${escapeHtml(noteVal)}</textarea>
+    </div>`:''}
+
+    ${upcomingHtml}
+
+    <div class="insert-form">
+      <div class="if-label">&#128197; Sonder-Einheit eintragen</div>
+      <div class="if-row">
+        <div class="if-field"><label>Datum</label>
+          <input id="ins-date" type="date" min="${iso}" value="${iso}"></div>
+        <div class="if-field"><label>Bezeichnung</label>
+          <input id="ins-label" type="text" placeholder="z.B. Personal Training" maxlength="40"></div>
+      </div>
+      <button class="if-savebtn" onclick="addInsert()">Eintragen \u2192 Zyklus passt sich an</button>
     </div>
 
     <button class="adjust" onclick="togglePicker()">Falscher Tag? &nbsp;\u2192&nbsp; Heute neu festlegen</button>
@@ -625,7 +713,7 @@ function renderToday(){
       <h2>${escapeHtml(short(plan.name,22))}</h2>
       <button class="editbtn ${editing?'on':''}" onclick="toggleEdit()">${editing?'Fertig':'Bearbeiten'}</button>
     </div>
-    <div class="hint">Wiederholt sich automatisch: Nach Tag ${len} geht es wieder bei Tag 1 los.</div>
+    <div class="hint">Krafttage warten auf Abhaken \u00b7 Restdays laufen automatisch weiter.</div>
 
     ${editing?`
       <div class="planname-row">
@@ -1127,6 +1215,29 @@ function renderNav(){
 }
 
 /* ============ ACTIONS ============ */
+function upcomingInserts(days){
+  const out=[], ins=state.inserts||{};
+  const now=new Date(); now.setHours(0,0,0,0);
+  for(let k=0;k<days;k++){
+    const d=new Date(now); d.setDate(d.getDate()+k);
+    const iso=isoOf(d);
+    if(ins[iso]) out.push({date:iso, label:ins[iso].label});
+  }
+  return out;
+}
+function addInsert(){
+  const dateEl=document.getElementById('ins-date');
+  const labelEl=document.getElementById('ins-label');
+  const date=(dateEl&&dateEl.value)||todayISO();
+  const label=(labelEl&&labelEl.value.trim())||'Sonder-Einheit';
+  if(!state.inserts) state.inserts={};
+  state.inserts[date]={label};
+  save(); render();
+}
+function removeInsert(date){
+  if(state.inserts) delete state.inserts[date];
+  save(); render();
+}
 function setView(v){ view=v; openNoteIdx=-1; editing=false; render(); window.scrollTo(0,0); }
 function setHistSub(s){ histSub=s; render(); window.scrollTo(0,0); }
 function setProgMetric(m){ progMetric=m; render(); }
