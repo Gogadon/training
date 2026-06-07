@@ -136,8 +136,18 @@
 
   /* exercises: session entry (today) */
   .ex-list{display:flex;flex-direction:column;gap:9px;margin-bottom:4px;}
-  .ex-card{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:12px 13px;}
-  .ex-card .ex-name{font-size:13.5px;font-weight:600;margin-bottom:10px;}
+  .ex-card{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;overflow:hidden;transition:.15s;}
+  .ex-card.checked{opacity:.6;background:var(--surface);}
+  .ex-head{display:flex;align-items:center;gap:11px;padding:12px 13px;cursor:pointer;}
+  .ex-check{width:24px;height:24px;border-radius:7px;border:1.5px solid var(--line);background:transparent;
+    color:transparent;font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;}
+  .ex-check.on{background:var(--accent);border-color:var(--accent);color:#0c0c0e;}
+  .ex-headtxt{flex:1;min-width:0;}
+  .ex-card .ex-name{font-size:13.5px;font-weight:600;}
+  .ex-card.checked .ex-name{text-decoration:line-through;text-decoration-color:var(--muted);}
+  .ex-sub{font-size:11px;color:var(--accent);margin-top:3px;font-weight:600;}
+  .ex-chev{font-size:18px;color:var(--muted);flex-shrink:0;line-height:1;}
+  .ex-body{padding:0 13px 13px;}
   .setrow{display:flex;gap:7px;align-items:center;margin-bottom:7px;}
   .setrow .setnum{font-family:'Anton',sans-serif;font-size:14px;color:var(--muted);min-width:20px;text-align:center;flex-shrink:0;}
   .setrow .ef{flex:1;display:flex;flex-direction:column;gap:3px;}
@@ -406,6 +416,7 @@ function defaultPlan(){
 function defaultState(){ const p=defaultPlan(); return {plans:[p], activePlanId:p.id, log:{}, weight:[]}; }
 
 let state=null, editing=false, openNoteIdx=-1, view='today', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
+let openExSet={}, openCardioSet={};
 const WEEKDAYS=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 const WD_SHORT=['So','Mo','Di','Mi','Do','Fr','Sa'];
 const MONTHS=['Jan','Feb','M\u00e4rz','Apr','Mai','Juni','Juli','Aug','Sep','Okt','Nov','Dez'];
@@ -479,8 +490,10 @@ function normSets(entry){
 }
 function getExEntry(iso,unitName,exId){
   const s=getSessionSets(iso,unitName);
-  const n=normSets(s[exId]);
+  const raw=s[exId];
+  const n=normSets(raw);
   if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+  n.checked=!!(raw&&raw.checked);
   return n;
 }
 function ensureExEntry(unitName,exId){
@@ -532,6 +545,40 @@ function lastSessionFor(unitName,exId){
     }
   }
   return null;
+}
+/* Übung heute abgehakt? (pro Session/Tag gespeichert) */
+function isExChecked(unitName,exId){
+  const e=getExEntry(todayISO(),unitName,exId);
+  return !!e.checked;
+}
+function toggleExCheck(unitName,exId){
+  const entry=ensureExEntry(unitName,exId);
+  entry.checked=!entry.checked;
+  // beim Abhaken zuklappen, beim Aufheben aufklappen
+  openExSet[unitName+'|'+exId]=entry.checked?false:true;
+  save(); render();
+}
+function toggleExOpen(unitName,exId){
+  const key=unitName+'|'+exId;
+  // abgehakte Übungen sind gesperrt -> nicht per Kopf-Tippen öffnen
+  if(isExChecked(unitName,exId)) return;
+  openExSet[key]=!isExOpen(unitName,exId);
+  render();
+}
+function isExOpen(unitName,exId){
+  const key=unitName+'|'+exId;
+  if(key in openExSet) return openExSet[key];
+  return !isExChecked(unitName,exId); // default: offen, außer abgehakt
+}
+/* Kurz-Zusammenfassung für die Kopfzeile, z.B. "4 Sätze · 45–47,5 kg" */
+function exSummary(unitName,exId){
+  const e=getExEntry(todayISO(),unitName,exId);
+  const kgs=e.rows.map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
+  if(!kgs.length) return 'keine Werte';
+  const n=e.rows.length;
+  const min=Math.min(...kgs), max=Math.max(...kgs);
+  const kgTxt=min===max?`${fmt(min)} kg`:`${fmt(min)}\u2013${fmt(max)} kg`;
+  return `${n} ${n>1?'S\u00e4tze':'Satz'} \u00b7 ${kgTxt}`;
 }
 /* --- Dynamische Zyklus-Berechnung ---
    Läuft von anchorISO bis gestern durch und rückt nur vor wenn:
@@ -796,6 +843,8 @@ function sessionExercisesHtml(idx,unitName,sessionNote){
   const cards=ex.map(e=>{
     const entry=getExEntry(iso,unitName,e.id);
     const rows=entry.rows;
+    const checked=!!entry.checked;
+    const open=isExOpen(unitName,e.id);
     const last=lastSessionFor(unitName,e.id);
     let lastHtml='';
     if(last){
@@ -810,12 +859,20 @@ function sessionExercisesHtml(idx,unitName,sessionNote){
       <div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>
       <button class="setdel" onclick="delSetRow('${unitAttr}','${e.id}',${ri})">\u2715</button>
     </div>`).join('');
-    return `<div class="ex-card">
-      <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}</div>
-      <div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
+    const body=`<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
-      ${lastHtml}
+      ${lastHtml}`;
+    return `<div class="ex-card${checked?' checked':''}">
+      <div class="ex-head" onclick="toggleExOpen('${unitAttr}','${e.id}')">
+        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleExCheck('${unitAttr}','${e.id}')">\u2713</button>
+        <div class="ex-headtxt">
+          <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}</div>
+          ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitName,e.id))}</div>`:''}
+        </div>
+        ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
+      </div>
+      ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
   return `<div class="ex-list">${cards}</div>
@@ -832,18 +889,20 @@ const CARDIO_UNITS=[
   {key:'lauf2', name:'Laufband 2', icon:'\ud83c\udfc3'},
 ];
 
+function cardioSummary(d){
+  const parts=[];
+  if(d.min!=null) parts.push(`${d.min} min`);
+  if(d.avgPulse!=null) parts.push(`\u00d8 ${d.avgPulse} bpm`);
+  else if(d.maxPulse!=null) parts.push(`max ${d.maxPulse} bpm`);
+  return parts.length?parts.join(' \u00b7 '):'keine Werte';
+}
 function cardioLogHtml(entry){
   const cd=entry.cardio||{};
   const units=CARDIO_UNITS.map(u=>{
     const d=cd[u.key]||{};
-    const on=!!d.done;
-    return `<div class="cardio-unit">
-      <div class="cu-head">
-        <span>${u.icon}</span>
-        <span class="cu-name">${u.name}</span>
-        <button class="cu-done ${on?'on':''}" onclick="toggleCardioUnit('${u.key}')">\u2713</button>
-      </div>
-      <div class="cardio-fields">
+    const checked=!!d.done;
+    const open=isCardioOpen(u.key,checked);
+    const body=`<div class="cardio-fields">
         <div class="cfield"><label>DAUER (min)</label>
           <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
             value="${d.min!=null?d.min:''}" oninput="saveCardio('${u.key}','min',this.value)"></div>
@@ -855,12 +914,22 @@ function cardioLogHtml(entry){
         <div class="cfield"><label>\u2665 MAX-PULS (bpm)</label>
           <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
             value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${u.key}','maxPulse',this.value)"></div>
+      </div>`;
+    return `<div class="ex-card${checked?' checked':''}">
+      <div class="ex-head" onclick="toggleCardioOpen('${u.key}')">
+        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${u.key}')">\u2713</button>
+        <div class="ex-headtxt">
+          <div class="ex-name">${u.icon} ${u.name}</div>
+          ${checked?`<div class="ex-sub">${escapeHtml(cardioSummary(d))}</div>`:''}
+        </div>
+        ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
   const note=(entry.cardioNote||'');
-  return `<div class="cardio-grid">${units}</div>
-    <div class="cfield" style="margin-top:2px;">
+  return `<div class="ex-list">${units}</div>
+    <div class="cfield" style="margin-top:10px;">
       <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
       <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute Zone 2 super gehalten..." oninput="updateCardioNote(this.value)">${escapeHtml(note)}</textarea>
     </div>`;
@@ -876,7 +945,20 @@ function toggleCardioUnit(key){
   if(!e.cardio) e.cardio={};
   if(!e.cardio[key]) e.cardio[key]={};
   e.cardio[key].done=!e.cardio[key].done;
+  // beim Abhaken zuklappen, beim Aufheben aufklappen
+  openCardioSet[key]=e.cardio[key].done?false:true;
   save(); render();
+}
+function isCardioOpen(key,checked){
+  if(key in openCardioSet) return openCardioSet[key];
+  return !checked; // default: offen, außer abgehakt
+}
+function toggleCardioOpen(key){
+  const e=getLogToday();
+  const checked=!!(e.cardio&&e.cardio[key]&&e.cardio[key].done);
+  if(checked) return; // abgehakt = gesperrt
+  openCardioSet[key]=!isCardioOpen(key,checked);
+  render();
 }
 function saveCardio(key,field,val){
   const e=getLogToday();
