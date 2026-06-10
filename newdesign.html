@@ -896,6 +896,7 @@ function resetApp(){
   render();
 }
 function goToPlanUnit(i){view='plan';openPlanIdx=i;render();window.scrollTo(0,0);}
+function goToPlanUnit(idx){view='plan';openPlanIdx=idx;render();window.scrollTo(0,0);}
 function setView(v){view=v;if(v==='progress')openProgUnits=null;render();window.scrollTo(0,0);}
 function setHistSub(s){histSub=s;if(s==='progress')openProgUnits=null;render();window.scrollTo(0,0);}
 function setProgMetric(m){progMetric=m;render();}
