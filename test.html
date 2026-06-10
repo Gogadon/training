@@ -195,7 +195,17 @@
   .metrictab{flex:1;background:var(--surface);border:1px solid var(--line);color:var(--muted);
     padding:8px;border-radius:10px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
   .metrictab.active{background:var(--accent);color:#0c0c0e;border-color:var(--accent);}
-  .prog-unit{margin-bottom:10px;}
+  .prog-unit{margin-bottom:6px;}
+  .pu-head{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;padding:13px 16px;cursor:pointer;transition:.15s;}
+  .pu-head.open{border-radius:14px 14px 0 0;border-bottom-color:transparent;}
+  .pu-head:active{background:var(--surface-2);}
+  .pu-head .tdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .pu-head .pu-name{font-family:'Anton',sans-serif;font-size:17px;text-transform:uppercase;
+    letter-spacing:.5px;flex:1;}
+  .pu-head .pu-chev{font-size:18px;color:var(--muted);}
+  .pu-body{background:var(--surface);border:1px solid var(--line);border-top:none;
+    border-radius:0 0 14px 14px;padding:10px 10px 12px;}
   .prog-unit .pu-title{font-family:'Anton',sans-serif;font-size:17px;text-transform:uppercase;
     letter-spacing:.5px;margin:18px 2px 10px;display:flex;align-items:center;gap:9px;}
   .prog-unit .pu-title .tdot{width:9px;height:9px;border-radius:50%;}
@@ -414,7 +424,7 @@ function defaultPlan(){
 function defaultState(){ const p=defaultPlan(); return {plans:[p], activePlanId:p.id, log:{}, weight:[]}; }
 
 let state=null, editing=false, openNoteIdx=-1, view='today', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
-let openExSet={}, openCardioSet={};
+let openExSet={}, openCardioSet={}, openProgUnits=null; // null = noch nicht initialisiert
 const WEEKDAYS=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 const WD_SHORT=['So','Mo','Di','Mi','Do','Fr','Sa'];
 const MONTHS=['Jan','Feb','M\u00e4rz','Apr','Mai','Juni','Juli','Aug','Sep','Okt','Nov','Dez'];
@@ -1016,15 +1026,19 @@ function historyActivityHtml(){
   for(let k=0;k<N;k++){
     const d=new Date(now); d.setDate(d.getDate()-k);
     const iso=isoOf(d);
+    const insert=(state.inserts||{})[iso];
     const info=unitForISO(iso);
+    const displayName=insert?insert.label:info.unit;
+    const displayType=insert?'other':info.type;
     const e=state.log[iso]||{};
     const done=!!e.done;
     if(done) doneCount++;
     const isToday=iso===todayIso;
     let summaryHtml='';
     if(done){
-      const t=info.type;
-      if(t==='rest'&&e.cardio){
+      if(insert){
+        // Einschub: nur Name, keine Session-Daten
+      } else if(displayType==='rest'&&e.cardio){
         const parts=CARDIO_UNITS.filter(u=>e.cardio[u.key]&&e.cardio[u.key].done).map(u=>{
           const d=e.cardio[u.key]; let s=u.name;
           if(d.min) s+=` ${d.min}min`;
@@ -1033,7 +1047,6 @@ function historyActivityHtml(){
         });
         if(parts.length) summaryHtml=`<div class="hcardio">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
       } else {
-        // strength: zeige Anzahl erfasster Übungen (nur abgehakte zählen)
         const sets=e.sets&&e.sets[info.unit];
         if(sets){
           const n=Object.keys(sets).filter(exId=>exCountsOnDay(sets,exId)).length;
@@ -1046,8 +1059,8 @@ function historyActivityHtml(){
     }
     rows+=`<div class="hrow ${done?'done':''}">
       <div class="hdate"><div class="d">${d.getDate()}</div><div class="m">${MONTHS[d.getMonth()]}</div><div class="hwd">${WD_SHORT[d.getDay()]}</div></div>
-      <div class="tdot ${info.type}"></div>
-      <div class="hunit">${escapeHtml(info.unit)}${isToday?' &nbsp;<span class="htoday">HEUTE</span>':''}${summaryHtml}</div>
+      <div class="tdot ${displayType}"></div>
+      <div class="hunit">${escapeHtml(displayName)}${isToday?' &nbsp;<span class="htoday">HEUTE</span>':''}${insert?` <span style="font-size:10px;color:var(--push);font-weight:700;">EINSCHUB</span>`:''}${summaryHtml}</div>
       <div class="hcheck">\u2713</div>
     </div>`;
   }
@@ -1094,6 +1107,19 @@ function historyProgressHtml(){
   }
 
   let anyData=false;
+  // Bestimme aktuelle Einheit für Auto-Open (nur Krafttag, kein Restday, kein Einschub)
+  const todayIso2=todayISO();
+  const todayInsert2=(state.inserts||{})[todayIso2];
+  const curIdx=currentIndex();
+  const curType=getType(curIdx);
+  const curUnitName=(activePlan().cycle[curIdx]||'');
+  const autoOpenName=(todayInsert2||curType==='rest')?null:curUnitName;
+  // Initialisiere openProgUnits beim ersten Aufruf
+  if(openProgUnits===null){
+    openProgUnits={};
+    if(autoOpenName) openProgUnits[autoOpenName]=true;
+  }
+
   const blocks=units.map(u=>{
     const ex=(p.exercises&&p.exercises[u.name])||[];
     if(!ex.length) return '';
@@ -1131,7 +1157,15 @@ function historyProgressHtml(){
       </div>`;
     }).filter(Boolean).join('');
     if(!cards) return '';
-    return `<div class="prog-unit"><div class="pu-title"><span class="tdot ${u.type}"></span>${escapeHtml(u.name)}</div>${cards}</div>`;
+    const isOpen=!!openProgUnits[u.name];
+    return `<div class="prog-unit">
+      <div class="pu-head ${isOpen?'open':''}" onclick="toggleProgUnit('${escapeAttr(u.name)}')">
+        <span class="tdot ${u.type}"></span>
+        <span class="pu-name">${escapeHtml(u.name)}</span>
+        <span class="pu-chev">${isOpen?'\u2303':'\u2304'}</span>
+      </div>
+      ${isOpen?`<div class="pu-body">${cards}</div>`:''}
+    </div>`;
   }).filter(Boolean).join('');
 
   if(!anyData){
@@ -1333,8 +1367,9 @@ function removeInsert(date){
   save(); render();
 }
 function setView(v){ view=v; openNoteIdx=-1; editing=false; render(); window.scrollTo(0,0); }
-function setHistSub(s){ histSub=s; render(); window.scrollTo(0,0); }
+function setHistSub(s){ histSub=s; if(s==='progress') openProgUnits=null; render(); window.scrollTo(0,0); }
 function setProgMetric(m){ progMetric=m; render(); }
+function toggleProgUnit(name){ if(!openProgUnits) openProgUnits={}; openProgUnits[name]=!openProgUnits[name]; render(); }
 function setRange(r){ weightRange=r; render(); }
 function setWeightDate(v){ weightDate=v||todayISO(); render(); }
 function editWeightEntry(date){ weightDate=date; render(); window.scrollTo(0,0); }
