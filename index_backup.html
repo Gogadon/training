@@ -551,6 +551,20 @@ function isExChecked(unitName,exId){
   const e=getExEntry(todayISO(),unitName,exId);
   return !!e.checked;
 }
+/* Zählt eine Übung an einem Tag als "gemacht"?
+   - Neue Sessions (Häkchen-System aktiv): nur wenn abgehakt
+   - Alte Sessions (vor dem Häkchen-Feature): wenn Gewicht eingetragen */
+function sessionUsesChecks(unitSets){
+  return Object.values(unitSets||{}).some(s=>s&&s.checked===true);
+}
+function exCountsOnDay(unitSets,exId){
+  const s=unitSets&&unitSets[exId];
+  if(!s) return false;
+  const hasKg=normSets(s).rows.some(r=>r.kg!=null);
+  if(!hasKg) return false;
+  if(sessionUsesChecks(unitSets)) return s.checked===true;
+  return true; // alte Session ohne Häkchen-System
+}
 function toggleExCheck(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
   entry.checked=!entry.checked;
@@ -1021,10 +1035,10 @@ function historyActivityHtml(){
         });
         if(parts.length) summaryHtml=`<div class="hcardio">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
       } else {
-        // strength: zeige Anzahl erfasster Übungen
+        // strength: zeige Anzahl erfasster Übungen (nur abgehakte zählen)
         const sets=e.sets&&e.sets[info.unit];
         if(sets){
-          const n=Object.values(sets).filter(s=>{ const r=normSets(s).rows; return r.some(x=>x.kg!=null); }).length;
+          const n=Object.keys(sets).filter(exId=>exCountsOnDay(sets,exId)).length;
           if(n) summaryHtml=`<div class="hcardio">${n} \u00dcbung${n>1?'en':''} erfasst${e.sessionNote?' \u00b7 '+escapeHtml(short(e.sessionNote.replace(/\n/g,' '),34)):''}</div>`;
         }
         if(!summaryHtml&&e.sessionNote){
@@ -1072,7 +1086,7 @@ function historyProgressHtml(){
     const out=[];
     Object.keys(state.log).sort().forEach(d=>{
       const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
-      if(s&&s[exId]){
+      if(s&&s[exId]&&exCountsOnDay(s,exId)){
         const n=normSets(s[exId]);
         const kg=metricKg(n.rows);
         if(kg!=null) out.push({date:d, kg:kg, rows:n.rows, note:(state.log[d].sessionNote||'')});
