@@ -301,7 +301,7 @@ function diffDays(a,b){return Math.round((isoToDate(a)-isoToDate(b))/86400000);}
 function fmt(n){return (Math.round(n*10)/10).toLocaleString('de-DE');}
 function esc(s){return(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function escA(s){return(s||'').replace(/["&<>]/g,c=>({'"':'&quot;','&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function sho(s,n){n=n||18;return s.length>n?s.slice(0,n-1)+'\u2026':s;}
+function sho(s,n){n=n||18;s=s||'';return s.length>n?s.slice(0,n-1)+'\u2026':s;}
 
 function typeOf(n){
   const v=(n||'').toLowerCase();
@@ -505,8 +505,9 @@ function hdr(){const n=new Date();return `<div class="top"><div class="brand"><d
 /* ====== TODAY ====== */
 function renderToday(){
   const p=activePlan(),idx=currentIndex(),iso=todayISO();
+  if(!p.cycle.length) return `${hdr()}<div style="text-align:center;padding:40px 16px;color:var(--muted);line-height:1.7;">Noch keine Einheiten im Plan.<br><button onclick="setView('plan')" style="margin-top:16px;background:var(--accent);color:#0c0c0e;border:none;border-radius:12px;padding:13px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;">\u2192 Plan einrichten</button></div>`;
   const insert=(state.inserts||{})[iso];
-  const unit=p.cycle[idx],tType=insert?'other':getType(idx);
+  const unit=p.cycle[idx]||'',tType=insert?'other':getType(idx);
   const isRest=tType==='rest';
   const e=state.log[iso]||{};
   const isDone=!!e.done;
@@ -608,7 +609,7 @@ function renderPlan(){
   const p=activePlan(),idx=currentIndex(),iso=todayISO();
   const tabs=state.plans.map(pl=>`<button class="plantab${pl.id===state.activePlanId?' active':''}" onclick="switchPlan('${pl.id}')">${esc(sho(pl.name,15))}</button>`).join('');
   const insert=(state.inserts||{})[iso];
-  const statusTxt=insert?`Heute: <b>${esc(insert.label)}</b> \u2014 Zyklus wartet auf n\u00e4chsten Trainingstag`:`Heute: Tag <b>${idx+1}</b> \u00b7 <b>${esc(sho(p.cycle[idx],24))}</b>`;
+  const statusTxt=insert?`Heute: <b>${esc(insert.label)}</b> \u2014 Zyklus wartet`:(p.cycle.length?`Heute: Tag <b>${idx+1}</b> \u00b7 <b>${esc(sho(p.cycle[idx]||'',24))}</b>`:`Noch keine Einheiten \u2014 f\u00fcge unten welche hinzu`);
 
   const days=p.cycle.map((u,i)=>{
     const t=(p.cycleTypes&&p.cycleTypes[i])||typeOf(u);
