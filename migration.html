@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trainings-App · Daten-Migration</title>
+<style>
+  :root{--bg:#0c0c0e;--surface:#16161a;--surface-2:#1d1d22;--line:#2a2a31;--text:#f4f4f5;--muted:#8b8b94;--accent:#cdfd34;--push:#ff6a3d;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding:26px 18px;max-width:560px;margin:0 auto;line-height:1.55;}
+  h1{font-size:26px;margin:0 0 6px;}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:24px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;}
+  .step{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:10px;}
+  .card p{font-size:14px;color:var(--muted);margin:0 0 16px;}
+  button,.filebtn{display:block;width:100%;border:none;border-radius:12px;padding:15px;font-family:inherit;
+    font-size:15px;font-weight:700;cursor:pointer;text-align:center;}
+  .primary{background:var(--accent);color:#0c0c0e;}
+  .ghost{background:transparent;border:1px solid var(--line);color:var(--accent);}
+  .primary:active,.ghost:active{transform:scale(.98);}
+  input[type=file]{display:none;}
+  .log{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:14px;
+    font-family:ui-monospace,monospace;font-size:12.5px;color:var(--muted);white-space:pre-wrap;margin-top:14px;max-height:320px;overflow:auto;}
+  .ok{color:var(--accent);}
+  .err{color:var(--push);}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+  <h1>Daten-Migration</h1>
+  <div class="sub">Wandelt ein Backup der alten Trainings-App (namensbasiert) ins neue Format (ID-basiert) um. Deine alten Daten bleiben unverändert – es wird nur eine neue Datei erzeugt.</div>
+
+  <div class="card">
+    <div class="step">Schritt 1 · Altes Backup laden</div>
+    <p>Wähle die JSON-Datei, die du aus der alten App exportiert hast.</p>
+    <label class="filebtn ghost" for="file">📂 Altes Backup auswählen</label>
+    <input id="file" type="file" accept="application/json,.json">
+  </div>
+
+  <div class="card hidden" id="resultCard">
+    <div class="step">Schritt 2 · Umgewandeltes Backup speichern</div>
+    <p>Migration erfolgreich. Lade die neue Datei herunter und importiere sie in der neuen App über den <b>Daten</b>-Tab.</p>
+    <button class="primary" id="download">⬇ Neues Backup herunterladen</button>
+  </div>
+
+  <div class="log hidden" id="log"></div>
+
+<script>
+function typeOf(name){
+  const n=(name||'').toLowerCase();
+  if(/rest|pause|frei|ruhe|erholung|cardio/.test(n)) return 'rest';
+  if(/r.cken|bizeps|pull|latz/.test(n))       return 'pull';
+  if(/brust|schulter|trizeps|push|press/.test(n)) return 'push';
+  if(/bein|nacken|leg|glute|wade|squat/.test(n))  return 'legs';
+  return 'other';
+}
+function makeId(){ return 'u_'+Math.random().toString(36).slice(2,8); }
+
+let migrated=null;
+const logEl=document.getElementById('log');
+function log(msg,cls){ logEl.classList.remove('hidden'); logEl.innerHTML+=(cls?`<span class="${cls}">${msg}</span>`:msg)+'\n'; }
+
+function migrate(old){
+  if(!old||!Array.isArray(old.plans)) throw new Error('Keine gültige Backup-Datei (plans fehlt).');
+
+  // 1) Einheiten-Bibliothek aus allen Plan-Namen aufbauen (Name -> unitId)
+  const units={};
+  const nameToId={}; // pro Plan eindeutig genug: globaler Name -> id (Namen sind appweit konsistent)
+  let unitCount=0, exCount=0;
+
+  old.plans.forEach(p=>{
+    const cycle=Array.isArray(p.cycle)?p.cycle:[];
+    const cycleTypes=Array.isArray(p.cycleTypes)?p.cycleTypes:[];
+    const exercises=p.exercises||{};
+    cycle.forEach((name,i)=>{
+      if(nameToId[name]) return; // schon angelegt
+      const id=makeId();
+      nameToId[name]=id;
+      // Typ: erst expliziter cycleType (erste Fundstelle), sonst Auto
+      let t=null;
+      cycle.forEach((n2,k)=>{ if(n2===name && cycleTypes[k] && !t) t=cycleTypes[k]; });
+      if(!t) t=typeOf(name);
+      const exs=(exercises[name]||[]).map(e=>({id:e.id||('e'+Math.random().toString(36).slice(2,7)), name:e.name||''}));
+      exCount+=exs.length;
+      units[id]={id, name, type:t, exercises:exs};
+      unitCount++;
+    });
+  });
+  log('Einheiten erstellt: '+unitCount,'ok');
+  log('Übungen übernommen: '+exCount,'ok');
+
+  // 2) Pläne umstellen: cycle (Namen) -> cycle (IDs), mode='cycle', week leer
+  const plans=old.plans.map(p=>{
+    const cycle=(p.cycle||[]).map(name=>nameToId[name]).filter(Boolean);
+    return {
+      id:p.id||('p'+Math.random().toString(36).slice(2,7)),
+      name:p.name||'Mein Plan',
+      mode:'cycle',
+      cycle,
+      week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''},
+      anchorISO:p.anchorISO||new Date().toISOString().slice(0,10),
+      anchorDay:p.anchorDay||1
+    };
+  });
+  log('Pläne umgestellt: '+plans.length,'ok');
+
+  // 3) Log umschlüsseln: sets[name] -> sets[unitId], unit -> unitId
+  const log2={};
+  let sessionCount=0, setMoved=0;
+  Object.keys(old.log||{}).forEach(date=>{
+    const e=Object.assign({},old.log[date]);
+    // unit (Name) -> unitId
+    if(e.unit && nameToId[e.unit]){ e.unitId=nameToId[e.unit]; }
+    else if(e.unit){ e.unitId=null; }
+    // sets umschlüsseln
+    if(e.sets && typeof e.sets==='object'){
+      const ns={};
+      Object.keys(e.sets).forEach(uname=>{
+        const id=nameToId[uname];
+        if(id){ ns[id]=e.sets[uname]; setMoved++; }
+        else { ns[uname]=e.sets[uname]; } // unbekannt: unverändert lassen
+      });
+      e.sets=ns;
+    }
+    delete e.unit; delete e.dayIdx;
+    log2[date]=e;
+    if(e.done) sessionCount++;
+  });
+  log('Trainingstage übernommen: '+Object.keys(log2).length+' (davon '+sessionCount+' abgeschlossen)','ok');
+  log('Session-Einheiten umgeschlüsselt: '+setMoved,'ok');
+
+  // 4) Rest unverändert
+  const weight=Array.isArray(old.weight)?old.weight:[];
+  const inserts=old.inserts||{};
+  log('Gewichtseinträge: '+weight.length,'ok');
+  log('Sonder-Einheiten: '+Object.keys(inserts).length,'ok');
+
+  const activePlanId=(plans.find(p=>p.id===old.activePlanId)||plans[0]).id;
+  return {units, plans, activePlanId, log:log2, weight, inserts};
+}
+
+document.getElementById('file').addEventListener('change',function(){
+  const f=this.files&&this.files[0];
+  if(!f) return;
+  logEl.innerHTML=''; logEl.classList.remove('hidden');
+  document.getElementById('resultCard').classList.add('hidden');
+  const r=new FileReader();
+  r.onload=function(){
+    try{
+      const old=JSON.parse(r.result);
+      log('Datei gelesen ('+(r.result.length)+' Zeichen).');
+      log('— Migration läuft —');
+      migrated=migrate(old);
+      log('— Fertig! —','ok');
+      document.getElementById('resultCard').classList.remove('hidden');
+    }catch(e){
+      log('FEHLER: '+e.message,'err');
+      migrated=null;
+    }
+  };
+  r.onerror=function(){ log('FEHLER beim Lesen der Datei.','err'); };
+  r.readAsText(f);
+});
+
+document.getElementById('download').addEventListener('click',function(){
+  if(!migrated) return;
+  const blob=new Blob([JSON.stringify(migrated,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='trainingszyklus-migriert.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+</script>
+</body>
+</html>
