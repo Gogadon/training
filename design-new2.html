@@ -497,6 +497,16 @@
   .up-new{width:100%;background:transparent;border:1px dashed var(--accent);color:var(--accent);
     border-radius:11px;padding:12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
 
+  /* Backup-Erinnerung */
+  .backup-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(255,106,61,.14),var(--surface));
+    border:1px solid var(--push);border-radius:14px;padding:13px 15px;margin-bottom:16px;cursor:pointer;animation:rise .4s ease both;}
+  .backup-banner:active{transform:scale(.99);}
+  .bb-icon{font-size:22px;flex-shrink:0;}
+  .bb-text{flex:1;min-width:0;}
+  .bb-title{font-size:14px;font-weight:700;color:var(--push);}
+  .bb-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .bb-arrow{font-size:22px;color:var(--push);flex-shrink:0;}
+
   /* Pull-to-refresh */
   #ptr{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:60;
     transform:translateY(-60px);}
@@ -1221,8 +1231,21 @@ function renderToday(){
   const insertBtn=todayInsert?'':`
     <button class="ghostbtn" onclick="gotoPlanTermine()">Termin / Sonder-Einheit eintragen</button>`;
 
+  // Backup-Erinnerung (nach 7+ Tagen oder wenn noch nie)
+  const dsb=daysSinceBackup();
+  const remindBackup=(dsb===null)||(dsb>=7);
+  const backupBanner=remindBackup?`<div class="backup-banner" onclick="setView('data')">
+      <span class="bb-icon">\ud83d\udcbe</span>
+      <div class="bb-text">
+        <div class="bb-title">Zeit f\u00fcr ein Backup</div>
+        <div class="bb-sub">${dsb===null?'Sichere deine Daten zum ersten Mal':'Letztes Backup vor '+dsb+' Tagen'} \u2013 tippen zum Sichern</div>
+      </div>
+      <span class="bb-arrow">\u203a</span>
+    </div>`:'';
+
   return `
     ${header()}
+    ${backupBanner}
 
     <div class="hero${todayInsert?' insert-hero':''}" data-type="${todayInsert?'other':tType}">
       ${heroContent}
@@ -1993,6 +2016,7 @@ function renderData(){
 
 function exportBackup(){
   try{
+    state.lastBackup=todayISO();
     const data=JSON.stringify(state,null,2);
     const blob=new Blob([data],{type:'application/json'});
     const url=URL.createObjectURL(blob);
@@ -2002,7 +2026,13 @@ function exportBackup(){
     a.href=url; a.download='trainingszyklus-backup-'+stamp+'.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),1000);
+    save(); render();
   }catch(e){ alert('Export fehlgeschlagen: '+e.message); }
+}
+/* Tage seit letztem Backup (null = noch nie) */
+function daysSinceBackup(){
+  if(!state.lastBackup) return null;
+  return diffDays(todayISO(), state.lastBackup);
 }
 function importBackup(input){
   const file=input.files&&input.files[0];
