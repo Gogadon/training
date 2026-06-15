@@ -85,7 +85,7 @@
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;}
   body{
-    height:100vh;height:100dvh;overflow:hidden;margin:0;
+    height:100vh;height:100dvh;overflow:hidden;margin:0;position:relative;
     display:flex;flex-direction:column;
     background:
       radial-gradient(120% 60% at 80% -5%,rgba(205,253,52,.10),transparent 55%),
@@ -99,7 +99,7 @@
   }
   .wrap{position:relative;z-index:1;width:100%;max-width:520px;margin:0 auto;
     flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
-    padding:22px 18px 28px;}
+    padding:22px 18px calc(86px + min(env(safe-area-inset-bottom,0px),10px));}
 
   .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
   .brand{display:flex;align-items:center;gap:10px;}
@@ -430,9 +430,9 @@
   .wentry .wedit{font-size:9px;letter-spacing:1px;color:var(--accent);font-weight:700;flex-shrink:0;}
 
   /* bottom nav */
-  .nav{position:relative;flex:0 0 auto;z-index:50;display:flex;justify-content:center;
-    padding:7px 14px calc(7px + min(env(safe-area-inset-bottom,0px),10px));
-    background:transparent;}
+  .nav{position:absolute;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:18px 14px calc(7px + min(env(safe-area-inset-bottom,0px),10px));
+    background:linear-gradient(to top,var(--bg) 38%,rgba(12,12,14,.85) 62%,transparent);}
   .navinner{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);
     border-radius:18px;padding:6px;width:100%;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
   .navbtn{flex:1;background:transparent;border:none;color:var(--muted);cursor:pointer;
