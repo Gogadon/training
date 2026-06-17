@@ -12,24 +12,64 @@
 <script>
 (function(){
   try{
-    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">'
-      +'<rect width="512" height="512" rx="112" fill="#0c0c0e"/>'
-      +'<g fill="#cdfd34">'
+    // Basis-SVG (Hantel-Icon)
+    function svgMarkup(pad){
+      var p=pad||0;
+      return '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">'
+      +'<rect width="512" height="512" rx="'+(p?0:112)+'" fill="#0c0c0e"/>'
+      +'<g fill="#cdfd34" transform="translate(256,256) scale('+(p?0.74:1)+') translate(-256,-256)">'
       +'<rect x="214" y="150" width="84" height="212" rx="20"/>'
       +'<rect x="132" y="188" width="58" height="136" rx="18"/>'
       +'<rect x="322" y="188" width="58" height="136" rx="18"/>'
       +'<rect x="100" y="230" width="40" height="52" rx="13"/>'
       +'<rect x="372" y="230" width="40" height="52" rx="13"/>'
       +'</g></svg>';
-    var icon='data:image/svg+xml,'+encodeURIComponent(svg);
-    var mani={name:'Trainingszyklus',short_name:'Training',start_url:'.',scope:'.',
-      display:'standalone',orientation:'portrait',background_color:'#0c0c0e',theme_color:'#0c0c0e',
-      icons:[{src:icon,sizes:'any',type:'image/svg+xml',purpose:'any'}]};
-    var l=document.createElement('link'); l.rel='manifest';
-    l.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(mani));
-    document.head.appendChild(l);
-    var ai=document.createElement('link'); ai.rel='apple-touch-icon'; ai.href=icon;
-    document.head.appendChild(ai);
+    }
+    var svgIcon='data:image/svg+xml,'+encodeURIComponent(svgMarkup(0));
+
+    function rasterize(markup,size){
+      return new Promise(function(res,rej){
+        var img=new Image();
+        img.onload=function(){
+          try{
+            var c=document.createElement('canvas'); c.width=size; c.height=size;
+            var ctx=c.getContext('2d'); ctx.drawImage(img,0,0,size,size);
+            res(c.toDataURL('image/png'));
+          }catch(e){ rej(e); }
+        };
+        img.onerror=rej;
+        img.src='data:image/svg+xml,'+encodeURIComponent(markup);
+      });
+    }
+
+    function buildManifest(icons){
+      var mani={name:'Trainingszyklus',short_name:'Training',start_url:'.',scope:'.',
+        display:'standalone',orientation:'portrait',background_color:'#0c0c0e',theme_color:'#0c0c0e',
+        icons:icons};
+      // data: URL (bewährt in Chrome/Samsung; start_url wird gegen das Dokument aufgelöst)
+      var href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(mani));
+      var l=document.createElement('link'); l.rel='manifest'; l.href=href;
+      document.head.appendChild(l);
+    }
+
+    // PNGs erzeugen (Firefox/Android bevorzugt PNG); Fallback: nur SVG
+    Promise.all([rasterize(svgMarkup(0),192), rasterize(svgMarkup(0),512), rasterize(svgMarkup(1),512)])
+      .then(function(r){
+        var icons=[
+          {src:r[0],sizes:'192x192',type:'image/png',purpose:'any'},
+          {src:r[1],sizes:'512x512',type:'image/png',purpose:'any'},
+          {src:r[2],sizes:'512x512',type:'image/png',purpose:'maskable'},
+          {src:svgIcon,sizes:'any',type:'image/svg+xml',purpose:'any'}
+        ];
+        buildManifest(icons);
+        var ai=document.createElement('link'); ai.rel='apple-touch-icon'; ai.href=r[0];
+        document.head.appendChild(ai);
+      })
+      .catch(function(){
+        buildManifest([{src:svgIcon,sizes:'any',type:'image/svg+xml',purpose:'any'}]);
+        var ai=document.createElement('link'); ai.rel='apple-touch-icon'; ai.href=svgIcon;
+        document.head.appendChild(ai);
+      });
   }catch(e){}
 })();
 </script>
@@ -45,7 +85,8 @@
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;}
   body{
-    min-height:100vh;padding:22px 18px calc(96px + env(safe-area-inset-bottom,0px));overflow-x:hidden;
+    height:100vh;height:100dvh;overflow:hidden;margin:0;position:relative;
+    display:flex;flex-direction:column;
     background:
       radial-gradient(120% 60% at 80% -5%,rgba(205,253,52,.10),transparent 55%),
       radial-gradient(90% 50% at -10% 10%,rgba(78,168,255,.07),transparent 60%),
@@ -56,7 +97,9 @@
     content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.04;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
-  .wrap{position:relative;z-index:1;max-width:520px;margin:0 auto;}
+  .wrap{position:relative;z-index:1;width:100%;max-width:520px;margin:0 auto;
+    flex:1 1 auto;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+    padding:22px 18px calc(86px + min(env(safe-area-inset-bottom,0px),10px));}
 
   .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
   .brand{display:flex;align-items:center;gap:10px;}
@@ -387,46 +430,252 @@
   .wentry .wedit{font-size:9px;letter-spacing:1px;color:var(--accent);font-weight:700;flex-shrink:0;}
 
   /* bottom nav */
-  .nav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
-    padding:8px 14px calc(8px + env(safe-area-inset-bottom,0px));
-    background:linear-gradient(to top,var(--bg) 60%,transparent);}
+  .nav{position:absolute;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
+    padding:18px 14px calc(7px + min(env(safe-area-inset-bottom,0px),10px));
+    background:linear-gradient(to top,var(--bg) 38%,rgba(12,12,14,.85) 62%,transparent);}
   .navinner{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);
     border-radius:18px;padding:6px;width:100%;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
   .navbtn{flex:1;background:transparent;border:none;color:var(--muted);cursor:pointer;
-    border-radius:13px;padding:9px 4px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;
-    font-family:inherit;font-size:10.5px;font-weight:600;letter-spacing:.3px;transition:.15s;}
-  .navbtn svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    border-radius:13px;padding:9px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-family:inherit;font-size:9.5px;font-weight:600;letter-spacing:.2px;transition:.15s;}
+  .navbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .navbtn.active{background:var(--surface-2);color:var(--accent);}
   .navbtn:active{transform:scale(.94);}
 
   .foot{margin-top:26px;text-align:center;font-size:11px;color:var(--muted);line-height:1.6;}
+
+  /* Mode tabs (Zyklus/Wochenplan) */
+  .modetabs{display:flex;gap:8px;margin:14px 0 6px;}
+  .modetab{flex:1;background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    border-radius:13px;padding:13px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;}
+  .modetab.active{background:var(--accent);color:#0c0c0e;border-color:var(--accent);}
+  .modetab:active{transform:scale(.98);}
+  .lib-usage{flex:1;font-size:11px;color:var(--muted);}
+
+  /* Sequence list (Zyklus-Ablauf) */
+  .seqlist{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+  .seqrow{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;}
+  .seqrow.today{border-color:var(--accent);background:linear-gradient(120deg,rgba(205,253,52,.06),var(--surface));}
+  .sq-num{font-family:'Anton',sans-serif;font-size:16px;color:var(--muted);min-width:20px;}
+  .seqrow.today .sq-num{color:var(--accent);}
+  .sq-name{flex:1;font-size:14px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sq-today{font-size:9px;font-weight:800;letter-spacing:1px;color:var(--accent);background:rgba(205,253,52,.12);padding:3px 7px;border-radius:6px;}
+  .sq-btn{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);width:32px;height:32px;
+    border-radius:9px;cursor:pointer;font-size:13px;flex-shrink:0;}
+  .sq-btn.del{color:var(--push);}
+  .sq-btn:active{background:var(--line);}
+
+  /* Week plan rows */
+  .wklist{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+  .wkrow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;padding:11px 13px;flex-wrap:wrap;}
+  .wkrow.today{border-color:var(--accent);background:linear-gradient(120deg,rgba(205,253,52,.06),var(--surface));}
+  .wk-day{font-size:13px;font-weight:600;min-width:104px;color:var(--text);}
+  .wkrow.today .wk-day{color:var(--accent);}
+  .wk-assign{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);
+    color:var(--text);border-radius:10px;padding:10px 12px;font-family:inherit;font-size:13.5px;font-weight:500;cursor:pointer;text-align:left;min-width:0;}
+  .wk-assign.empty{color:var(--muted);justify-content:center;}
+  .wk-assign:active{background:var(--line);}
+  .wk-clear{background:transparent;border:1px solid var(--line);color:var(--push);width:36px;height:36px;
+    border-radius:9px;cursor:pointer;flex-shrink:0;}
+
+  /* Unit picker (Chips) */
+  .unit-picker{width:100%;background:var(--surface);border:1px solid var(--accent);border-radius:var(--radius);
+    padding:16px;margin:8px 0 14px;animation:rise .3s ease both;}
+  .up-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .up-head span{font-size:13px;font-weight:700;color:var(--text);}
+  .up-close{background:var(--surface-2);border:1px solid var(--line);color:var(--muted);width:30px;height:30px;border-radius:8px;cursor:pointer;}
+  .up-chips{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+  .uchip{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line);
+    color:var(--text);border-radius:11px;padding:12px 13px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left;transition:.12s;}
+  .uchip:active{transform:scale(.98);background:var(--line);}
+  .uchip-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .uchip-dot.pull{background:var(--pull);}.uchip-dot.push{background:var(--push);}
+  .uchip-dot.legs{background:var(--accent);}.uchip-dot.rest{background:var(--rest);}.uchip-dot.other{background:var(--muted);}
+  .uchip-meta{margin-left:auto;font-size:11px;color:var(--muted);font-weight:500;}
+  .up-new{width:100%;background:transparent;border:1px dashed var(--accent);color:var(--accent);
+    border-radius:11px;padding:12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+
+  /* Backup-Erinnerung */
+  .backup-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(255,106,61,.14),var(--surface));
+    border:1px solid var(--push);border-radius:14px;padding:13px 15px;margin-bottom:16px;cursor:pointer;animation:rise .4s ease both;}
+  .backup-banner:active{transform:scale(.99);}
+  .bb-icon{font-size:22px;flex-shrink:0;}
+  .bb-text{flex:1;min-width:0;}
+  .bb-title{font-size:14px;font-weight:700;color:var(--push);}
+  .bb-sub{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .bb-arrow{font-size:22px;color:var(--push);flex-shrink:0;}
+
+  /* Pull-to-refresh */
+  #ptr{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;pointer-events:none;z-index:60;
+    transform:translateY(-60px);}
+  #ptr.snap{transition:transform .25s ease;}
+  #ptr .ptr-c{margin-top:8px;width:38px;height:38px;border-radius:50%;background:var(--surface);
+    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--accent);
+    box-shadow:0 6px 20px rgba(0,0,0,.45);}
+  #ptr.spin .ptr-c{animation:ptrspin .7s linear infinite;}
+  @keyframes ptrspin{to{transform:rotate(360deg);}}
+
+  /* Onboarding */
+  .ob{animation:rise .4s ease both;}
+  .ob-steps{display:flex;gap:7px;justify-content:center;margin:6px 0 22px;}
+  .ob-dot{width:28px;height:5px;border-radius:3px;background:var(--line);transition:.2s;}
+  .ob-dot.on{background:var(--accent);width:36px;}
+  .ob-dot.done{background:var(--accent);opacity:.5;}
+  .ob-hero{text-align:center;margin-bottom:26px;}
+  .ob-emoji{font-size:46px;margin-bottom:8px;}
+  .ob-title{font-family:'Anton',sans-serif;font-size:40px;line-height:1;text-transform:uppercase;margin-bottom:12px;}
+  .ob-title.sm{font-size:30px;margin-bottom:8px;}
+  .ob-text{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:8px;}
+  .ob-q{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin:18px 0 10px;}
+  .ob-choice{display:block;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--line);
+    border-radius:var(--radius);padding:16px 18px;margin-bottom:12px;cursor:pointer;transition:.15s;color:var(--text);font-family:inherit;}
+  .ob-choice.on{border-color:var(--accent);background:linear-gradient(140deg,rgba(205,253,52,.08),var(--surface));}
+  .ob-choice-h{font-size:17px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .ob-rec{font-size:10px;font-weight:600;letter-spacing:.5px;color:var(--accent);background:rgba(205,253,52,.1);padding:3px 8px;border-radius:6px;text-transform:none;}
+  .ob-choice-t{font-size:13px;color:var(--muted);line-height:1.55;}
+  .ob-next{width:100%;background:var(--accent);color:#0c0c0e;border:none;border-radius:14px;padding:16px;
+    font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;margin-top:14px;}
+  .ob-next:active{transform:scale(.98);}
+  .ob-back{background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:14px;
+    padding:16px 20px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;}
+  .ob-navrow{display:flex;gap:10px;margin-top:18px;}
+  .ob-navrow .ob-next{margin-top:0;flex:1;}
+  .ob-suggs{display:flex;flex-wrap:wrap;gap:8px;}
+  .ob-sugg{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);
+    color:var(--text);border-radius:11px;padding:9px 13px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:.12s;}
+  .ob-sugg:active{transform:scale(.96);}
+  .ob-sugg.used{opacity:.45;border-color:var(--accent);}
+  .ob-custom{display:flex;gap:8px;margin-top:12px;}
+  .ob-custom input{flex:1;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    border-radius:11px;padding:12px 14px;font-family:inherit;font-size:14px;outline:none;}
+  .ob-custom input:focus{border-color:var(--accent);}
+  .ob-custom button{background:var(--accent);color:#0c0c0e;border:none;border-radius:11px;width:48px;font-size:22px;font-weight:700;cursor:pointer;}
+
+  /* Data tab */
+  .datacard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px;margin-bottom:14px;animation:rise .4s ease both;}
+  .dc-label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:12px;}
+  .dc-text{font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:16px;}
+  .dc-btn{width:100%;border-radius:13px;padding:15px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:.15s;}
+  .dc-btn.primary{background:var(--accent);color:#0c0c0e;border:none;}
+  .dc-btn.ghost{background:transparent;border:1px solid var(--line);color:var(--accent);}
+  .dc-btn:active{transform:scale(.98);}
+  .dc-meta{font-size:12px;color:var(--muted);line-height:1.6;margin-top:14px;}
+  .dc-meta b{color:var(--text);}
+
+  /* Session wrap (Heute) */
+  .volcard{background:linear-gradient(160deg,rgba(205,253,52,.10),var(--surface));border:1px solid var(--accent);
+    border-radius:var(--radius);padding:18px 20px;margin-bottom:12px;text-align:center;animation:rise .4s ease both;}
+  .vol-big{font-family:'Anton',sans-serif;font-size:42px;line-height:1;color:var(--accent);}
+  .vol-big small{font-family:'Sora',sans-serif;font-size:16px;color:var(--muted);font-weight:600;margin-left:3px;}
+  .vol-sub{font-size:12px;color:var(--muted);margin-top:8px;font-weight:500;}
+  .sessionwrap{margin-bottom:14px;}
+  .ses-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;}
+  .ses-head span{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .ses-addbtn{background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+    font-family:inherit;font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:9px;cursor:pointer;}
+  .ses-addbtn:active{background:var(--line);}
+  .ses-empty{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;
+    text-align:center;color:var(--muted);font-size:13px;line-height:1.5;}
+
+  /* Finish + ghost buttons */
+  .finishbtn{width:100%;border:none;border-radius:var(--radius);padding:17px;margin-bottom:12px;
+    font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;transition:.15s;
+    background:var(--accent);color:#0c0c0e;display:flex;align-items:center;justify-content:center;gap:9px;}
+  .finishbtn:active{transform:scale(.985);}
+  .finishbtn.done{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
+  .finishbtn .bx{font-size:18px;}
+  .ghostbtn{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted);
+    padding:13px;border-radius:14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;}
+  .ghostbtn:active{background:var(--surface);}
+
+  /* Plan cards */
+  .planname-static{flex:1;min-width:0;font-size:16px;font-weight:600;padding:11px 0;}
+  .planlist{display:flex;flex-direction:column;gap:9px;}
+  .pcard{background:var(--surface);border:1px solid var(--line);border-radius:15px;overflow:hidden;}
+  .pcard-head{display:flex;align-items:center;gap:11px;padding:13px 14px;cursor:pointer;}
+  .pcard-head.today{background:linear-gradient(120deg,rgba(205,253,52,.07),transparent);}
+  .pcard-head.open{border-bottom:1px solid var(--line);}
+  .pcard-head .pnum{font-family:'Anton',sans-serif;font-size:18px;color:var(--muted);min-width:22px;}
+  .pcard-head.today .pnum{color:var(--accent);}
+  .pname-inp{flex:1;min-width:0;background:transparent;border:none;color:var(--text);font-family:inherit;
+    font-size:14.5px;font-weight:500;outline:none;padding:4px 0;}
+  .pname-inp:focus{border-bottom:1px solid var(--accent);}
+  .pexcount{font-size:11px;color:var(--muted);background:var(--surface-2);padding:4px 9px;border-radius:8px;flex-shrink:0;}
+  .pexcount.rest{color:var(--rest);}
+  .pchev{font-size:17px;color:var(--muted);flex-shrink:0;}
+  .pcard-body{padding:8px 14px 14px;}
+  .pcard-actions{display:flex;gap:7px;margin-top:10px;}
+  .parrow{flex:1;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);
+    font-family:inherit;font-size:11.5px;font-weight:600;padding:9px;border-radius:9px;cursor:pointer;}
+  .parrow.del{color:var(--push);flex:0 0 auto;padding:9px 13px;}
+  .parrow:active{background:var(--line);}
   @keyframes rise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
   .loading{text-align:center;padding:60px 0;color:var(--muted);}
 </style>
 </head>
 <body>
+<div id="ptr" aria-hidden="true"><div class="ptr-c"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg></div></div>
 <div class="wrap" id="app"><div class="loading">lädt …</div></div>
 <div class="nav" id="nav"></div>
 
 <script>
-const STORE_KEY_OLD='trainingszyklus_v1';
-const STORE_KEY_V2='trainingszyklus_v2';
+const STORE_KEY_OLD='__none1';
+const STORE_KEY_V2='__none2';
 const STORE_KEY='trainingszyklus_v3';
+const STORE_KEY_BACKUP='trainingszyklus_v3_altformat_backup';
 const CARDIO_TPL='15 min Laufband\n10 min Fahrrad\n20 min Laufband\nPuls: max. Zone 2';
 
 function makeId(){ return Math.random().toString(36).slice(2,8); }
-function defaultPlan(){
+
+/* --- NEUE STRUKTUR: Einheiten als wiederverwendbare Bausteine mit ID ---
+   state.units[id] = {id, name, type, exercises:[{id,name}]}
+   plan.cycle = [unitId, unitId, ...]   (Zyklus-Modus)
+   plan.week  = {0:unitId,...,6:unitId} (Wochenplan-Modus, 0=So)
+   plan.mode  = 'cycle' | 'week'
+*/
+function defaultUnits(){
   return {
-    id:makeId(), name:'Push \u00b7 Pull \u00b7 Legs',
-    cycle:['R\u00fccken \u00b7 Bizeps','Brust \u00b7 Schulter \u00b7 Trizeps','Active Rest','Beine \u00b7 Nacken','R\u00fccken \u00b7 Bizeps','Active Rest','Brust \u00b7 Schulter \u00b7 Trizeps','Beine \u00b7 Nacken','Active Rest'],
-    cycleTypes:[null,null,null,null,null,null,null,null,null],
-    anchorISO:todayISO(), anchorDay:1, dayNotes:{}
+    u_rb:{id:'u_rb', name:'R\u00fccken \u00b7 Bizeps', type:'pull',
+      exercises:[{id:'rb1',name:'Lat-Zug'},{id:'rb2',name:'Rudern'},{id:'rb3',name:'Bizeps-Curl'}]},
+    u_bst:{id:'u_bst', name:'Brust \u00b7 Schulter \u00b7 Trizeps', type:'push',
+      exercises:[{id:'bs1',name:'Bankdr\u00fccken'},{id:'bs2',name:'Schulterdr\u00fccken'},{id:'bs3',name:'Trizeps-Dr\u00fccken'}]},
+    u_bn:{id:'u_bn', name:'Beine \u00b7 Nacken', type:'legs',
+      exercises:[{id:'bn1',name:'Beinpresse'},{id:'bn2',name:'Beinbeuger'},{id:'bn3',name:'Nackenheben'}]},
+    u_rest:{id:'u_rest', name:'Active Rest', type:'rest', exercises:[]}
   };
 }
-function defaultState(){ const p=defaultPlan(); return {plans:[p], activePlanId:p.id, log:{}, weight:[]}; }
+function defaultPlan(){
+  return {
+    id:makeId(), name:'Push \u00b7 Pull \u00b7 Legs', mode:'cycle',
+    cycle:['u_rb','u_bst','u_rest','u_bn','u_rb','u_rest','u_bst','u_bn','u_rest'],
+    week:{0:'u_rest',1:'u_rb',2:'u_bst',3:'u_rest',4:'u_bn',5:'u_rb',6:'u_rest'},
+    anchorISO:todayISO(), anchorDay:1
+  };
+}
+function defaultState(){
+  const p=defaultPlan();
+  const units=defaultUnits();
+  // Beispiel-Gewichtsverlauf (letzte ~8 Wochen)
+  const weight=[]; const now=new Date(); now.setHours(0,0,0,0);
+  const wPlan=[96,95.4,95,94.3,94,93.6,93.2,93];
+  for(let i=0;i<wPlan.length;i++){ const d=new Date(now); d.setDate(d.getDate()-(wPlan.length-1-i)*7);
+    weight.push({date:isoOf(d), kg:wPlan[i]}); }
+  // Beispiel-Sessions für Rücken·Bizeps (Lat-Zug Progression) - jetzt unitId-basiert
+  const log={};
+  function iso(off){ const d=new Date(now); d.setDate(d.getDate()+off); return isoOf(d); }
+  log[iso(-18)]={done:true,unitId:'u_rb',type:'pull',sets:{u_rb:{rb1:{rows:[{kg:55,reps:12},{kg:55,reps:12}],checked:true},rb2:{rows:[{kg:45,reps:12}],checked:true}}}};
+  log[iso(-9)]={done:true,unitId:'u_rb',type:'pull',sets:{u_rb:{rb1:{rows:[{kg:57.5,reps:12},{kg:57.5,reps:10}],checked:true},rb2:{rows:[{kg:47.5,reps:12}],checked:true}}}};
+  return {units, plans:[p], activePlanId:p.id, log, weight, inserts:{}};
+}
 
 let state=null, editing=false, openNoteIdx=-1, view='today', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
-let openExSet={}, openCardioSet={}, openProgUnits=null; // null = noch nicht initialisiert
+let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
+let pickerFor=null, libOpenId=null;
+let needsOnboarding=false;
+let ob=null; // Onboarding-Zustand
 const WEEKDAYS=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
 const WD_SHORT=['So','Mo','Di','Mi','Do','Fr','Sa'];
 const MONTHS=['Jan','Feb','M\u00e4rz','Apr','Mai','Juni','Juli','Aug','Sep','Okt','Nov','Dez'];
@@ -447,49 +696,60 @@ function typeOf(name){
 }
 
 function activePlan(){ return state.plans.find(p=>p.id===state.activePlanId)||state.plans[0]; }
-function getNote(i){ const p=activePlan(); return (p.dayNotes&&p.dayNotes[i])||''; }
-function setNote(i,v){ const p=activePlan(); if(!p.dayNotes) p.dayNotes={}; p.dayNotes[i]=v; save(); }
-function getType(i){ const p=activePlan(); return (p.cycleTypes&&p.cycleTypes[i])||typeOf(p.cycle[i]); }
+function getNote(i){ return ''; }   /* Plan-Notizen entfernt (Altlast) */
+function setNote(i,v){}
 
-/* --- Übungen pro Einheit-Name (geteilt zwischen gleichnamigen Tagen) --- */
-function exKey(i){ return activePlan().cycle[i]; }
-function getExercises(i){
-  const p=activePlan();
-  if(!p.exercises) p.exercises={};
-  const k=exKey(i);
-  return p.exercises[k]||[];
+/* --- Einheiten-Zugriff über ID --- */
+function unitById(id){ return (state.units&&state.units[id])||null; }
+function unitAt(i){ const p=activePlan(); return unitById(p.cycle[i]); }
+function unitNameAt(i){ const u=unitAt(i); return u?u.name:'\u2014'; }
+function getType(i){ const u=unitAt(i); return u?u.type:'other'; }
+function getTypeByUnitId(id){ const u=unitById(id); return u?u.type:'other'; }
+
+/* Gesamtvolumen einer Session (kg bewegt = Summe kg*reps NUR abgehakter Übungen) */
+function sessionVolume(iso,unitId){
+  const sets=getSessionSets(iso,unitId);
+  let total=0, setCount=0;
+  Object.keys(sets).forEach(exId=>{
+    const s=sets[exId];
+    if(!s||s.checked!==true) return; // nur explizit abgehakte zählen (kein Altdaten-Fallback)
+    normSets(s).rows.forEach(r=>{
+      if(r.kg!=null&&r.reps!=null){ total+=r.kg*r.reps; setCount++; }
+    });
+  });
+  return {total:Math.round(total), setCount};
 }
-function setExercises(i,arr){
-  const p=activePlan();
-  if(!p.exercises) p.exercises={};
-  p.exercises[exKey(i)]=arr;
+
+/* --- Übungen hängen an der Unit-ID (wiederverwendbar) --- */
+function getExercisesByUnitId(id){ const u=unitById(id); return (u&&u.exercises)||[]; }
+function getExercises(i){ return getExercisesByUnitId(activePlan().cycle[i]); }
+function addExerciseToUnit(unitId){
+  const u=unitById(unitId); if(!u) return;
+  if(!Array.isArray(u.exercises)) u.exercises=[];
+  u.exercises.push({id:makeId(), name:''});
+  save(); render();
+}
+function renameExerciseInUnit(unitId,exId,name){
+  const u=unitById(unitId); if(!u) return;
+  u.exercises=(u.exercises||[]).map(e=>e.id===exId?{...e,name}:e);
   save();
 }
-function addExercise(i){
-  const arr=getExercises(i).slice();
-  arr.push({id:makeId(), name:''});
-  setExercises(i,arr); render();
-}
-function renameExercise(i,exId,name){
-  const arr=getExercises(i).map(e=>e.id===exId?{...e,name}:e);
-  setExercises(i,arr);
-}
-function delExercise(i,exId){
-  const arr=getExercises(i).filter(e=>e.id!==exId);
-  setExercises(i,arr); render();
+function delExerciseFromUnit(unitId,exId){
+  const u=unitById(unitId); if(!u) return;
+  u.exercises=(u.exercises||[]).filter(e=>e.id!==exId);
+  save(); render();
 }
 
-/* --- Session-Sätze: state.log[iso].sets[einheitName][exId] = {rows:[{kg,reps},...]} --- */
-function getSessionSets(iso,unitName){
+/* --- Session-Sätze: state.log[iso].sets[unitId][exId] = {rows:[{kg,reps}],checked} --- */
+function getSessionSets(iso,unitId){
   const e=state.log[iso];
-  if(e&&e.sets&&e.sets[unitName]) return e.sets[unitName];
+  if(e&&e.sets&&e.sets[unitId]) return e.sets[unitId];
   return {};
 }
 /* normalisiert einen Übungs-Eintrag in {rows:[{kg,reps}]} (auch alte Struktur) */
 function normSets(entry){
   if(!entry) return {rows:[]};
   if(Array.isArray(entry.rows)) return {rows:entry.rows};
-  // alte Struktur {kg,sets,reps} -> in Zeilen umwandeln
   if(entry.kg!=null){
     const n=entry.sets!=null?entry.sets:1;
     const rows=[];
@@ -498,24 +758,24 @@ function normSets(entry){
   }
   return {rows:[]};
 }
-function getExEntry(iso,unitName,exId){
-  const s=getSessionSets(iso,unitName);
+function getExEntry(iso,unitId,exId){
+  const s=getSessionSets(iso,unitId);
   const raw=s[exId];
   const n=normSets(raw);
   if(!n.rows.length) n.rows=[{kg:null,reps:null}];
   n.checked=!!(raw&&raw.checked);
   return n;
 }
-function ensureExEntry(unitName,exId){
+function ensureExEntry(unitId,exId){
   const iso=todayISO();
   if(!state.log[iso]) state.log[iso]={};
   const e=state.log[iso];
   if(!e.sets) e.sets={};
-  if(!e.sets[unitName]) e.sets[unitName]={};
-  if(!e.sets[unitName][exId]||!Array.isArray(e.sets[unitName][exId].rows)){
-    e.sets[unitName][exId]=normSets(e.sets[unitName][exId]);
+  if(!e.sets[unitId]) e.sets[unitId]={};
+  if(!e.sets[unitId][exId]||!Array.isArray(e.sets[unitId][exId].rows)){
+    e.sets[unitId][exId]=normSets(e.sets[unitId][exId]);
   }
-  return e.sets[unitName][exId];
+  return e.sets[unitId][exId];
 }
 function saveSetRow(unitName,exId,rowIdx,field,val){
   const entry=ensureExEntry(unitName,exId);
@@ -621,7 +881,7 @@ function calcIndexUpTo(untilISO){
   for(let d=new Date(anchor); d<until; d.setDate(d.getDate()+1)){
     const iso=isoOf(d);
     if(inserts[iso]){ continue; } // Einschub: Zyklus wartet
-    const t=(p.cycleTypes&&p.cycleTypes[pos%len])||typeOf(p.cycle[pos%len]);
+    const t=getTypeByUnitId(p.cycle[pos%len]);
     if(t==='rest'){
       pos++; // Restday: immer weiter
     } else {
@@ -645,41 +905,90 @@ async function storageSet(key,value){
   mem[key]=value;
 }
 
+/* Migriert altes namensbasiertes Format -> neues ID-basiertes Modell */
+function migrateOldFormat(old){
+  const units={}; const nameToId={};
+  (old.plans||[]).forEach(p=>{
+    const cycle=Array.isArray(p.cycle)?p.cycle:[];
+    const cycleTypes=Array.isArray(p.cycleTypes)?p.cycleTypes:[];
+    const exercises=p.exercises||{};
+    cycle.forEach(name=>{
+      if(nameToId[name]) return;
+      const id='u_'+Math.random().toString(36).slice(2,8);
+      nameToId[name]=id;
+      let t=null; cycle.forEach((n2,k)=>{ if(n2===name&&cycleTypes[k]&&!t) t=cycleTypes[k]; });
+      if(!t) t=typeOf(name);
+      const exs=(exercises[name]||[]).map(e=>({id:e.id||('e'+Math.random().toString(36).slice(2,7)), name:e.name||''}));
+      units[id]={id, name, type:t, exercises:exs};
+    });
+  });
+  const plans=(old.plans||[]).map(p=>({
+    id:p.id||('p'+Math.random().toString(36).slice(2,7)),
+    name:p.name||'Mein Plan', mode:'cycle',
+    cycle:(p.cycle||[]).map(n=>nameToId[n]).filter(Boolean),
+    week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''},
+    anchorISO:p.anchorISO||todayISO(), anchorDay:p.anchorDay||1
+  }));
+  const log={};
+  Object.keys(old.log||{}).forEach(date=>{
+    const e=Object.assign({},old.log[date]);
+    if(e.unit&&nameToId[e.unit]) e.unitId=nameToId[e.unit];
+    if(e.sets&&typeof e.sets==='object'){
+      const ns={};
+      Object.keys(e.sets).forEach(uname=>{ const id=nameToId[uname]; if(id) ns[id]=e.sets[uname]; else ns[uname]=e.sets[uname]; });
+      e.sets=ns;
+    }
+    delete e.unit; delete e.dayIdx;
+    log[date]=e;
+  });
+  const activePlanId=(plans.find(p=>p.id===old.activePlanId)||plans[0]||{}).id;
+  return {units, plans, activePlanId, log,
+    weight:Array.isArray(old.weight)?old.weight:[],
+    inserts:old.inserts||{},
+    lastBackup:old.lastBackup||null};
+}
+function emptyState(){
+  const p={id:makeId(), name:'Mein Plan', mode:'cycle', cycle:[], week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''}, anchorISO:todayISO(), anchorDay:1};
+  return {units:{}, plans:[p], activePlanId:p.id, log:{}, weight:[], inserts:{}};
+}
 async function load(){
-  try{ const v=await storageGet(STORE_KEY); if(v){ state=JSON.parse(v); } }catch(e){}
-  if(!state){
-    // migrate from v2
-    try{
-      const v2=await storageGet(STORE_KEY_V2);
-      if(v2){ const old=JSON.parse(v2);
-        if(old&&Array.isArray(old.plans)){ state={plans:old.plans, activePlanId:old.activePlanId, log:{}, weight:[]}; }
-      }
-    }catch(e){}
+  let raw=null, migratedNow=false;
+  try{ const v=await storageGet(STORE_KEY); if(v){ raw=v; state=JSON.parse(v); } }catch(e){}
+  if(!state){ state=emptyState(); needsOnboarding=true; }
+  else if(state.plans && !state.units){
+    // ALTES Format erkannt -> Sicherungskopie anlegen, dann migrieren + sofort speichern
+    try{ if(raw) await storageSet(STORE_KEY_BACKUP, raw); }catch(e){}
+    try{ state=migrateOldFormat(state); migratedNow=true; }catch(e){ /* im Fehlerfall altes state behalten */ }
   }
-  if(!state){
-    try{
-      const v1=await storageGet(STORE_KEY_OLD);
-      if(v1){ const old=JSON.parse(v1);
-        if(old&&Array.isArray(old.cycle)){ const p=defaultPlan();
-          p.cycle=old.cycle; p.anchorISO=old.anchorISO||todayISO(); p.anchorDay=old.anchorDay||1;
-          state={plans:[p], activePlanId:p.id, log:{}, weight:[]}; }
-      }
-    }catch(e){}
-  }
-  if(!state) state=defaultState();
+  if(!state.units||typeof state.units!=='object') state.units={};
   if(!state.log) state.log={};
   if(!Array.isArray(state.weight)) state.weight=[];
   if(!state.inserts) state.inserts={};
-  state.plans.forEach(p=>{ if(!p.dayNotes||typeof p.dayNotes!=='object') p.dayNotes={}; if(!p.exercises||typeof p.exercises!=='object') p.exercises={}; });
+  state.plans.forEach(p=>{
+    if(!p.mode) p.mode='cycle';
+    if(!Array.isArray(p.cycle)) p.cycle=[];
+    if(!p.week||typeof p.week!=='object') p.week={0:'',1:'',2:'',3:'',4:'',5:'',6:''};
+  });
+  if(migratedNow){ try{ await save(); }catch(e){} }
 }
 async function save(){ try{ await storageSet(STORE_KEY,JSON.stringify(state)); }catch(e){} }
 
 /* ============ RENDER ROUTER ============ */
 function render(){
   const app=document.getElementById('app');
+  const nav=document.getElementById('nav');
+  if(needsOnboarding){
+    app.innerHTML=renderOnboarding();
+    if(nav) nav.style.display='none';
+    app.querySelectorAll('.note-ta').forEach(ta=>{ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
+    return;
+  }
+  if(nav) nav.style.display='';
   if(view==='today') app.innerHTML=renderToday();
+  else if(view==='plan') app.innerHTML=renderPlan();
   else if(view==='history') app.innerHTML=renderHistory();
   else if(view==='body') app.innerHTML=renderBody();
+  else if(view==='data') app.innerHTML=renderData();
   renderNav();
   app.querySelectorAll('.note-ta').forEach(ta=>{ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
 }
@@ -692,184 +1001,356 @@ function header(){
   </div>`;
 }
 
-/* ============ TODAY VIEW ============ */
-function renderToday(){
-  const plan=activePlan(), len=plan.cycle.length;
+/* ============ PLAN VIEW ============ */
+/* --- Einheiten-Bibliothek: alle Units, Verwendungs-Check --- */
+function allUnits(){ return Object.values(state.units||{}); }
+function unitUsage(unitId){
+  // an welchen Plänen/Stellen wird die Unit verwendet?
+  const out=[];
+  state.plans.forEach(p=>{
+    let used=false;
+    if(p.mode==='week'){ if(Object.values(p.week||{}).includes(unitId)) used=true; }
+    else { if((p.cycle||[]).includes(unitId)) used=true; }
+    if(used) out.push(p.name);
+  });
+  return out;
+}
+function createUnitInLibrary(){
+  const uid='u_'+makeId();
+  state.units[uid]={id:uid, name:'Neue Einheit', type:'other', exercises:[]};
+  libOpenId=uid; save(); render();
+}
+function delUnitFromLibrary(unitId){
+  const usage=unitUsage(unitId);
+  if(usage.length){ alert('Diese Einheit wird noch verwendet in: '+usage.join(', ')+'. Entferne sie erst aus dem Ablauf.'); return; }
+  if(!confirm('Einheit dauerhaft aus der Bibliothek l\u00f6schen?')) return;
+  delete state.units[unitId];
+  if(libOpenId===unitId) libOpenId=null;
+  save(); render();
+}
+function toggleLibCard(id){ libOpenId=(libOpenId===id)?null:id; render(); }
+
+/* --- Unit-Picker (Chip-Auswahl) --- */
+function openUnitPicker(ctx){ pickerFor=ctx; render(); setTimeout(()=>{ const el=document.getElementById('unit-picker'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); },60); }
+function closeUnitPicker(){ pickerFor=null; render(); }
+function pickUnit(unitId){
+  const p=activePlan();
+  if(pickerFor==='cycle'){ p.cycle.push(unitId); }
+  else if(typeof pickerFor==='string'&&pickerFor.startsWith('week:')){
+    const day=+pickerFor.split(':')[1];
+    if(!p.week) p.week={};
+    p.week[day]=unitId;
+  }
+  pickerFor=null; save(); render();
+}
+function unitPickerHtml(){
+  if(pickerFor===null) return '';
+  const units=allUnits();
+  const chips=units.map(u=>`<button class="uchip ${u.type}" onclick="pickUnit('${u.id}')">
+    <span class="uchip-dot ${u.type}"></span>${escapeHtml(short(u.name,22))}
+    <span class="uchip-meta">${u.type==='rest'?'Cardio':getExercisesByUnitId(u.id).length+' \u00dcb.'}</span>
+  </button>`).join('');
+  const title=pickerFor==='cycle'?'Welche Einheit anh\u00e4ngen?':'Welche Einheit f\u00fcr diesen Tag?';
+  return `<div class="unit-picker" id="unit-picker">
+    <div class="up-head"><span>${title}</span><button class="up-close" onclick="closeUnitPicker()">\u2715</button></div>
+    <div class="up-chips">${chips||'<div class="ex-empty">Noch keine Einheiten in der Bibliothek.</div>'}</div>
+    <button class="up-new" onclick="createUnitInLibrary()">+ Neue Einheit erstellen</button>
+  </div>`;
+}
+function setPlanMode(mode){
+  const p=activePlan();
+  if(p.mode===mode) return;
+  p.mode=mode;
+  if(mode==='week'&&!p.week) p.week={0:'',1:'',2:'',3:'',4:'',5:'',6:''};
+  pickerFor=null; planOpenIdx=-1; save(); render();
+}
+function clearWeekday(day){ const p=activePlan(); if(p.week) p.week[day]=''; save(); render(); }
+
+function renderPlan(){
+  const plan=activePlan();
   const iso=todayISO();
-  const todayInsert=(state.inserts||{})[iso];
   const idx=currentIndex();
-  const todayUnit=len?plan.cycle[idx]:'\u2014';
-  const tType=getType(idx);
-  const now=new Date();
-  const dateStr=WEEKDAYS[now.getDay()]+', '+now.getDate()+'. '+MONTHS[now.getMonth()];
-  const noteVal=getNote(idx);
-  const logEntry=state.log[iso]||{};
-  const isDone=!!logEntry.done;
-  const sessionNote=logEntry.sessionNote||'';
-  const isRest=tType==='rest';
+  const isWeek=plan.mode==='week';
 
   const tabs=state.plans.map(p=>
     `<button class="plantab${p.id===state.activePlanId?' active':''}" onclick="switchPlan('${p.id}')">${escapeHtml(short(p.name,16))}</button>`
   ).join('');
 
-  // Hero: Einschub oder normaler Tag
-  const heroContent=todayInsert
-    ?`<div class="glow"></div>
-      <div class="label" style="color:var(--push)">Sonder-Einheit heute</div>
-      <div class="weekday">${dateStr}</div>
-      <div class="unit" style="font-size:clamp(32px,10vw,52px)">${escapeHtml(todayInsert.label)}</div>
-      <div class="daybadge">Zyklus wartet \u00b7 morgen: <b>${escapeHtml(short(todayUnit,18))}</b></div>`
-    :`<div class="glow"></div>
-      <div class="label">Heute trainierst du</div>
-      <div class="weekday">${dateStr}</div>
-      <div class="unit">${escapeHtml(todayUnit)}</div>
-      <div class="daybadge">Tag <b>${len?idx+1:0}</b> von <b>${len}</b> im Zyklus</div>`;
+  // --- Einheiten-Bibliothek ---
+  const libCards=allUnits().map(u=>{
+    const open=libOpenId===u.id;
+    const isRestU=u.type==='rest';
+    const exCount=getExercisesByUnitId(u.id).length;
+    const usage=unitUsage(u.id);
+    return `<div class="pcard">
+      <div class="pcard-head ${open?'open':''}" onclick="toggleLibCard('${u.id}')">
+        <button class="tdot-btn ${u.type}" onclick="event.stopPropagation();cycleTypeUnit('${u.id}')" title="Farbe"></button>
+        <input class="pname-inp" value="${escapeAttr(u.name)}" onclick="event.stopPropagation()" oninput="renameUnit('${u.id}',this.value)" placeholder="Einheit-Name">
+        ${!isRestU?`<span class="pexcount">${exCount} \u00dcb.</span>`:'<span class="pexcount rest">Cardio</span>'}
+        <span class="pchev">${open?'\u2303':'\u2304'}</span>
+      </div>
+      ${open?`<div class="pcard-body">
+        ${isRestU?`<div class="ex-empty">Active Rest \u2013 Cardio tr\u00e4gst du im <b>Heute</b>-Tab ein. (Eine Einheit gilt als Rest, wenn ihre Farbe grau ist.)</div>`:exDefHtmlUnit(u.id)}
+        <div class="pcard-actions">
+          <span class="lib-usage">${usage.length?'verwendet in: '+escapeHtml(usage.join(', ')):'noch nicht zugewiesen'}</span>
+          <button class="parrow del" onclick="event.stopPropagation();delUnitFromLibrary('${u.id}')">\u2715 l\u00f6schen</button>
+        </div>
+      </div>`:''}
+    </div>`;
+  }).join('');
 
-  // Upcoming inserts (nächste 14 Tage)
-  const upcoming=upcomingInserts(14);
-  const upcomingHtml=upcoming.length?`<div style="margin-bottom:14px;">
-    ${upcoming.map(e=>{
-      const d=isoToDate(e.date);
-      return `<div class="irow">
-        <div class="idate">${WD_SHORT[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}</div>
-        <div class="iname">${escapeHtml(e.label)}</div>
-        <div class="iinfo">${e.date===iso?'HEUTE':''}${e.shifting?' \u2022 Zyklus wartet':''}</div>
-        <button class="iconbtn del" onclick="removeInsert('${e.date}')">\u2715</button>
+  // --- Ablauf: Zyklus ODER Wochenplan ---
+  let sequenceHtml='';
+  if(isWeek){
+    const wd=new Date().getDay();
+    const rows=[1,2,3,4,5,6,0].map(day=>{
+      const uid=(plan.week&&plan.week[day])||'';
+      const u=unitById(uid);
+      const today=day===wd;
+      const picking=pickerFor==='week:'+day;
+      return `<div class="wkrow ${today?'today':''}">
+        <div class="wk-day">${WEEKDAYS[day]}${today?' \u00b7 heute':''}</div>
+        <button class="wk-assign ${u?'':'empty'}" onclick="openUnitPicker('week:${day}')">
+          ${u?`<span class="tdot ${u.type}"></span>${escapeHtml(short(u.name,20))}`:'+ Einheit w\u00e4hlen'}
+        </button>
+        ${u?`<button class="wk-clear" onclick="clearWeekday(${day})" title="Frei">\u2715</button>`:''}
+        ${picking?unitPickerHtml():''}
       </div>`;
-    }).join('')}
-  </div>`:'';
+    }).join('');
+    sequenceHtml=`<div class="sec-head" style="margin-top:26px;"><h2>Wochenplan</h2></div>
+      <div class="hint">Weise jedem Wochentag eine Einheit zu. Leere Tage gelten als frei.</div>
+      <div class="wklist">${rows}</div>`;
+  } else {
+    const cycleHtml=plan.cycle.map((uid,i)=>{
+      const u=unitById(uid);
+      const name=u?u.name:'\u2014';
+      const t=u?u.type:'other';
+      const today=i===idx;
+      return `<div class="seqrow ${today?'today':''}">
+        <span class="sq-num">${i+1}</span>
+        <span class="tdot ${t}"></span>
+        <span class="sq-name">${escapeHtml(short(name,22))}</span>
+        ${today?'<span class="sq-today">HEUTE</span>':''}
+        <button class="sq-btn" onclick="move(${i},-1)">\u25b2</button>
+        <button class="sq-btn" onclick="move(${i},1)">\u25bc</button>
+        ${plan.cycle.length>1?`<button class="sq-btn del" onclick="delUnit(${i})">\u2715</button>`:''}
+      </div>`;
+    }).join('');
+    sequenceHtml=`<div class="sec-head" style="margin-top:26px;"><h2>Zyklus-Ablauf</h2></div>
+      <div class="hint">Die Reihenfolge deiner Einheiten. W\u00e4hle aus der Bibliothek, was du anh\u00e4ngen willst.</div>
+      <div class="seqlist">${cycleHtml}</div>
+      ${pickerFor==='cycle'?unitPickerHtml():`<button class="addbtn" onclick="openUnitPicker('cycle')">+ Tag hinzuf\u00fcgen</button>`}`;
+  }
 
   return `
     ${header()}
+    <div class="ptitle">Plan</div>
     <div class="plantabs">${tabs}<button class="plantab add" onclick="addPlan()">+</button></div>
 
-    <div class="hero${todayInsert?' insert-hero':''}" data-type="${todayInsert?'other':tType}">
-      ${heroContent}
+    <div class="planname-row">
+      ${planNameEdit
+        ?`<input class="inp planname-inp" value="${escapeAttr(plan.name)}" oninput="editPlanName(this.value)" placeholder="Plan-Name" autofocus>
+           <button class="iconbtn" style="color:var(--accent)" onclick="togglePlanNameEdit()" title="Fertig">\u2713</button>`
+        :`<div class="planname-static">${escapeHtml(plan.name)}</div>
+           <button class="iconbtn" onclick="togglePlanNameEdit()" title="Name bearbeiten">\u270e</button>`}
+      ${state.plans.length>1?`<button class="iconbtn del" onclick="deletePlan('${plan.id}')">&#128465;</button>`:''}
     </div>
 
-    <button class="donebtn ${isDone?'done':''}" onclick="toggleDone()">
-      <span class="bx">${isDone?'\u2713':'\u25cb'}</span>${isDone?'Heute erledigt':'Als erledigt markieren'}
-    </button>
+    <div class="modetabs">
+      <button class="modetab ${!isWeek?'active':''}" onclick="setPlanMode('cycle')">\ud83d\udd01 Zyklus</button>
+      <button class="modetab ${isWeek?'active':''}" onclick="setPlanMode('week')">\ud83d\udcc5 Wochenplan</button>
+    </div>
+    <div class="hint">${isWeek?'Feste Wochentage \u2013 jeder Tag immer dieselbe Einheit.':'Rotierende Abfolge \u2013 l\u00e4uft unabh\u00e4ngig vom Wochentag, wartet aufs Abhaken.'}</div>
 
-    ${isDone&&!todayInsert?`<div class="note-box">
-      <div class="note-label"><span>${isRest?'\ud83d\udeb4 Cardio-Log (heute)':'\ud83c\udfcb\ufe0f Session \u00b7 '+escapeHtml(short(todayUnit,20))}</span></div>
-      ${isRest ? cardioLogHtml(logEntry) : sessionExercisesHtml(idx,todayUnit,sessionNote)}
+    <div class="sec-head" style="margin-top:22px;"><h2>Einheiten-Bibliothek</h2></div>
+    <div class="hint">Erstelle hier deine Einheiten mit \u00dcbungen. Eine Einheit kann mehrfach im Ablauf vorkommen.</div>
+    <div class="planlist">${libCards||'<div class="ex-empty">Noch keine Einheiten.</div>'}</div>
+    <button class="addbtn" onclick="createUnitInLibrary()">+ Neue Einheit erstellen</button>
+
+    ${sequenceHtml}
+
+    ${!isWeek?`<div class="sec-head" style="margin-top:26px;"><h2>Heute korrigieren</h2></div>
+    <div class="hint">Falls die App den falschen Zyklustag zeigt, hier neu setzen.</div>
+    <button class="adjust" onclick="togglePicker()">Heute neu festlegen</button>
+    <div class="picker" id="picker">
+      <div class="pq">Welche Einheit hast du <b>heute</b> wirklich?</div>
+      ${plan.cycle.map((uid,i)=>`<button class="chip" onclick="setToday(${i})">Tag ${i+1} \u00b7 ${escapeHtml(short((unitById(uid)||{}).name||'\u2014',16))}</button>`).join('')}
     </div>`:''}
 
-    ${!todayInsert?`<div class="note-box">
-      <div class="note-label"><span>&#9998;&nbsp; Plan-Notiz \u00b7 Tag ${len?idx+1:0}</span></div>
-      <textarea class="note-ta" placeholder="Feste Notiz zu dieser Einheit..." oninput="updateNote(this.value)">${escapeHtml(noteVal)}</textarea>
-    </div>`:''}
-
-    ${upcomingHtml}
-
+    <div class="sec-head" style="margin-top:26px;" id="termine-anchor"><h2>Termine</h2></div>
+    <div class="hint">Trage Sonder-Einheiten ein (z.B. Personal Training). Der ${isWeek?'Wochenplan':'Zyklus'} verschiebt sich automatisch.</div>
+    ${(function(){ const up=upcomingInserts(21); return up.length?`<div style="margin-bottom:14px;">${up.map(e=>{
+      const d=isoToDate(e.date);
+      return `<div class="irow"><div class="idate">${WD_SHORT[d.getDay()]}, ${d.getDate()}. ${MONTHS[d.getMonth()]}</div>
+        <div class="iname">${escapeHtml(e.label)}</div>
+        <button class="iconbtn del" onclick="removeInsert('${e.date}')">\u2715</button></div>`;
+    }).join('')}</div>`:''; })()}
     <div class="insert-form">
-      <div class="if-label">&#128197; Sonder-Einheit eintragen</div>
       <div class="if-row">
         <div class="if-field"><label>Datum</label>
           <input id="ins-date" type="date" min="${iso}" value="${iso}"></div>
         <div class="if-field"><label>Bezeichnung</label>
           <input id="ins-label" type="text" placeholder="z.B. Personal Training" maxlength="40"></div>
       </div>
-      <button class="if-savebtn" onclick="addInsert()">Eintragen \u2192 Zyklus passt sich an</button>
+      <button class="if-savebtn" onclick="addInsert()">Eintragen \u2192 Ablauf passt sich an</button>
     </div>
 
-    <button class="adjust" onclick="togglePicker()">Falscher Tag? &nbsp;\u2192&nbsp; Heute neu festlegen</button>
-    <div class="picker" id="picker">
-      <div class="pq">Welche Einheit hast du <b>heute</b> wirklich?</div>
-      ${plan.cycle.map((u,i)=>`<button class="chip" onclick="setToday(${i})">Tag ${i+1} \u00b7 ${escapeHtml(short(u,16))}</button>`).join('')}
-    </div>
-
-    <div class="sec-head">
-      <h2>${escapeHtml(short(plan.name,22))}</h2>
-      <button class="editbtn ${editing?'on':''}" onclick="toggleEdit()">${editing?'Fertig':'Bearbeiten'}</button>
-    </div>
-    <div class="hint">Krafttage warten auf Abhaken \u00b7 Restdays laufen automatisch weiter.</div>
-
-    ${editing?`
-      <div class="planname-row">
-        <input class="inp planname-inp" value="${escapeAttr(plan.name)}" oninput="editPlanName(this.value)" placeholder="Plan-Name">
-        ${state.plans.length>1?`<button class="iconbtn del" onclick="deletePlan('${plan.id}')">&#128465;</button>`:''}
-      </div>
-      <div class="hint" style="margin-bottom:10px;">Tippe auf den bunten Punkt um die Farbe zu \u00e4ndern &nbsp;&#11044;</div>
-    `:''}
-
-    <div class="list">${plan.cycle.map((u,i)=>rowHtml(u,i,idx)).join('')}</div>
-    ${editing?`<button class="addbtn" onclick="addUnit()">+ Einheit hinzuf\u00fcgen</button>`:''}
-
-    <div class="foot">Daten werden automatisch gespeichert</div>
+    <div class="foot">\u00c4nderungen werden automatisch gespeichert</div>
   `;
 }
 
-function rowHtml(u,i,idx){
-  const t=getType(i);
-  if(editing){
-    const isRestU=typeOf(u)==='rest'||t==='rest';
-    const firstOccurrence=activePlan().cycle.indexOf(u)===i;
-    return `<div class="row edit">
-      <div class="arrows">
-        <button class="iconbtn" onclick="move(${i},-1)">\u25b2</button>
-        <button class="iconbtn" onclick="move(${i},1)">\u25bc</button>
-      </div>
-      <button class="tdot-btn ${t}" onclick="cycleType(${i})" title="Farbe \u00e4ndern"></button>
-      <input class="inp" value="${escapeAttr(u)}" oninput="editUnit(${i},this.value)" placeholder="z.B. Brust \u00b7 Schulter">
-      <button class="iconbtn del" onclick="delUnit(${i})">\u2715</button>
-    </div>
-    ${(!isRestU&&firstOccurrence)?exDefHtml(i,u):''}`;
-  }
-  const today=i===idx;
-  const note=getNote(i);
-  const hasNote=note.trim().length>0;
-  const open=openNoteIdx===i;
-  return `<div class="day-wrap">
-    <div class="row ${today?'today':''} ${open?'open':''}" onclick="toggleNote(${i})">
-      <div class="num">${i+1}</div>
-      <div class="tdot ${t}"></div>
-      <div class="name">${escapeHtml(u)}</div>
-      ${hasNote&&!open?'<div class="noteflag">\u270e</div>':''}
-      ${today?'<div class="now">HEUTE</div>':''}
-      <div class="chev">${open?'\u00d7':'\u203a'}</div>
-    </div>
-    ${open?`<div class="note-panel">
-      <div class="plabel">\u270e Plan-Notiz \u00b7 Tag ${i+1}</div>
-      <textarea class="note-ta" placeholder="Feste Notiz zu dieser Einheit..." oninput="updateDayNote(${i},this.value)">${escapeHtml(note)}</textarea>
-    </div>`:''}
-  </div>`;
+/* Welche Unit-ID ist heute dran? (modusabhängig) */
+function todayUnitId(){
+  const p=activePlan();
+  if(p.mode==='week'){ const wd=new Date().getDay(); return (p.week&&p.week[wd])||''; }
+  const len=p.cycle.length; if(!len) return ''; return p.cycle[currentIndex()];
 }
 
-/* Übungs-Editor (Bearbeiten-Modus) */
-function exDefHtml(i,unitName){
-  const ex=getExercises(i);
+/* ============ TODAY VIEW ============ */
+function renderToday(){
+  const plan=activePlan(), len=plan.cycle.length;
+  const iso=todayISO();
+  const todayInsert=(state.inserts||{})[iso];
+  const idx=currentIndex();
+  const todayUnitId_=todayUnitId();
+  const todayUnitObj=unitById(todayUnitId_);
+  const todayUnit=todayUnitObj?todayUnitObj.name:'\u2014';
+  const tType=todayUnitObj?todayUnitObj.type:'other';
+  const now=new Date();
+  const dateStr=WEEKDAYS[now.getDay()]+', '+now.getDate()+'. '+MONTHS[now.getMonth()];
+  const logEntry=state.log[iso]||{};
+  const isDone=!!logEntry.done;
+  const sessionNote=logEntry.sessionNote||'';
+  const isRest=tType==='rest';
+  const isWeek=plan.mode==='week';
+  const isFree=!todayInsert&&!todayUnitObj; // Wochenplan: Tag ohne Einheit = frei
+
+  // Hero: Einschub oder normaler Tag
+  const badge=isWeek
+    ?`<div class="daybadge">${WEEKDAYS[now.getDay()]} \u00b7 Wochenplan</div>`
+    :`<div class="daybadge">Tag <b>${len?idx+1:0}</b> von <b>${len}</b> im Zyklus</div>`;
+  const heroContent=todayInsert
+    ?`<div class="glow"></div>
+      <div class="label" style="color:var(--push)">Sonder-Einheit heute</div>
+      <div class="weekday">${dateStr}</div>
+      <div class="unit" style="font-size:clamp(32px,10vw,52px)">${escapeHtml(todayInsert.label)}</div>
+      <div class="daybadge">${isWeek?'Wochenplan':'Zyklus'} wartet \u00b7 sonst: <b>${escapeHtml(short(todayUnit,18))}</b></div>`
+    :isFree
+    ?`<div class="glow"></div>
+      <div class="label">Heute ist</div>
+      <div class="weekday">${dateStr}</div>
+      <div class="unit">Frei</div>
+      ${badge}`
+    :`<div class="glow"></div>
+      <div class="label">Heute trainierst du</div>
+      <div class="weekday">${dateStr}</div>
+      <div class="unit">${escapeHtml(todayUnit)}</div>
+      ${badge}`;
+
+  // Session-Bereich: Übungen IMMER sichtbar (kein Gate mehr)
+  let sessionHtml='';
+  if(todayInsert){
+    sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist eine Sonder-Einheit \u2013 frei trainieren, kein Log n\u00f6tig.</div></div>`;
+  } else if(isFree){
+    sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist ein freier Tag \u2013 keine Einheit zugewiesen. Genie\u00df die Pause! \ud83d\ude0c</div></div>`;
+  } else if(isRest){
+    sessionHtml=`<div class="sessionwrap">
+      <div class="ses-head"><span>\ud83d\udeb4 Cardio heute</span></div>
+      ${cardioLogHtml(logEntry)}
+    </div>`;
+  } else {
+    sessionHtml=`<div class="sessionwrap">
+      <div class="ses-head"><span>\ud83c\udfcb\ufe0f \u00dcbungen \u00b7 ${escapeHtml(short(todayUnit,22))}</span>
+        <button class="ses-addbtn" onclick="gotoPlanUnitId('${todayUnitId_}')">+ \u00dcbung</button></div>
+      ${sessionExercisesHtml(idx,todayUnitId_,sessionNote)}
+    </div>`;
+  }
+
+  // Abschluss-Button UNTEN (umgedrehter Flow)
+  const vol=(!todayInsert&&!isRest&&!isFree&&isDone)?sessionVolume(iso,todayUnitId_):null;
+  const volHtml=(vol&&vol.total>0)?`<div class="volcard">
+      <div class="vol-big">${vol.total.toLocaleString('de-DE')}<small> kg</small></div>
+      <div class="vol-sub">bewegt heute \u00b7 ${vol.setCount} S\u00e4tze gez\u00e4hlt</div>
+    </div>`:'';
+  const finishBtn=(todayInsert||isFree)?'':`
+    <button class="finishbtn ${isDone?'done':''}" onclick="toggleDone()">
+      <span class="bx">${isDone?'\u2713':'\u25cb'}</span>${isDone?'Session abgeschlossen \u2013 tippen zum \u00d6ffnen':'Session abschlie\u00dfen'}
+    </button>${volHtml}`;
+  // Einschub-Button (für heute)
+  const insertBtn=todayInsert?'':`
+    <button class="ghostbtn" onclick="gotoPlanTermine()">Termin / Sonder-Einheit eintragen</button>`;
+
+  // Backup-Erinnerung (nach 7+ Tagen oder wenn noch nie)
+  const dsb=daysSinceBackup();
+  const remindBackup=(dsb===null)||(dsb>=7);
+  const backupBanner=remindBackup?`<div class="backup-banner" onclick="setView('data')">
+      <span class="bb-icon">\ud83d\udcbe</span>
+      <div class="bb-text">
+        <div class="bb-title">Zeit f\u00fcr ein Backup</div>
+        <div class="bb-sub">${dsb===null?'Sichere deine Daten zum ersten Mal':'Letztes Backup vor '+dsb+' Tagen'} \u2013 tippen zum Sichern</div>
+      </div>
+      <span class="bb-arrow">\u203a</span>
+    </div>`:'';
+
+  return `
+    ${header()}
+    ${backupBanner}
+
+    <div class="hero${todayInsert?' insert-hero':''}" data-type="${todayInsert?'other':tType}">
+      ${heroContent}
+    </div>
+
+    ${todayInsert?`<button class="ghostbtn" onclick="removeInsert('${iso}')">Sonder-Einheit entfernen</button>`:''}
+
+    ${sessionHtml}
+
+    ${(!todayInsert&&!isFree)?`<div class="note-box">
+      <div class="note-label"><span>${isRest?'\ud83d\udcdd Notiz heute':'\ud83d\udcdd Session-Notiz'}</span></div>
+      <textarea class="note-ta" placeholder="z.B. lief super / Schulter zwickt..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
+    </div>`:''}
+
+    ${finishBtn}
+    ${insertBtn}
+
+    <div class="foot">Krafttage warten aufs Abschlie\u00dfen \u00b7 Restdays laufen automatisch weiter</div>
+  `;
+}
+
+/* Übungs-Editor (operiert auf der Unit-Bibliothek) */
+function exDefHtmlUnit(unitId){
+  const u=unitById(unitId); if(!u) return '';
+  const ex=u.exercises||[];
   const rows=ex.map(e=>`<div class="exrow">
-    <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExercise(${i},'${e.id}',this.value)">
-    <button class="iconbtn del" onclick="delExercise(${i},'${e.id}')">\u2715</button>
+    <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
+    <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
   </div>`).join('');
   return `<div class="exdef">
-    <div class="exlabel">\u00dcbungen f\u00fcr \u201e${escapeHtml(short(unitName,22))}\u201c</div>
+    <div class="exlabel">\u00dcbungen f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
     ${rows}
-    <button class="ex-add" onclick="addExercise(${i})">+ \u00dcbung hinzuf\u00fcgen</button>
+    <button class="ex-add" onclick="addExerciseToUnit('${unitId}')">+ \u00dcbung hinzuf\u00fcgen</button>
   </div>`;
 }
 
 /* ============ SESSION EXERCISES (Krafttraining) ============ */
-function sessionExercisesHtml(idx,unitName,sessionNote){
-  const ex=getExercises(idx);
+function sessionExercisesHtml(idx,unitId,sessionNote){
+  const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
+  const uName=(unitById(unitId)||{}).name||'';
   if(!ex.length){
-    return `<div class="ex-empty">Noch keine \u00dcbungen f\u00fcr \u201e${escapeHtml(unitName)}\u201c hinterlegt.<br>
-      Tippe oben auf <b>Bearbeiten</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu \u2013 sie gelten dann f\u00fcr alle gleichnamigen Tage.</div>
+    return `<div class="ex-empty">Noch keine \u00dcbungen f\u00fcr \u201e${escapeHtml(uName)}\u201c hinterlegt.<br>
+      Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>
       <div class="cfield" style="margin-top:10px;">
         <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
         <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute lief's super..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
       </div>`;
   }
-  const unitAttr=escapeAttr(unitName);
+  const unitAttr=escapeAttr(unitId);
   const cards=ex.map(e=>{
-    const entry=getExEntry(iso,unitName,e.id);
+    const entry=getExEntry(iso,unitId,e.id);
     const rows=entry.rows;
     const checked=!!entry.checked;
-    const open=isExOpen(unitName,e.id);
-    const last=lastSessionFor(unitName,e.id);
+    const open=isExOpen(unitId,e.id);
+    const last=lastSessionFor(unitId,e.id);
     let lastHtml='';
     if(last){
       const d=isoToDate(last.date);
@@ -892,7 +1373,7 @@ function sessionExercisesHtml(idx,unitName,sessionNote){
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleExCheck('${unitAttr}','${e.id}')">\u2713</button>
         <div class="ex-headtxt">
           <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}</div>
-          ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitName,e.id))}</div>`:''}
+          ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitId,e.id))}</div>`:''}
         </div>
         ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
@@ -1000,11 +1481,15 @@ function updateCardioNote(v){
 /* ============ HISTORY VIEW ============ */
 function unitForISO(iso){
   const e=state.log[iso];
-  if(e&&e.unit) return {unit:e.unit, type:e.type||typeOf(e.unit)};
-  const p=activePlan(), len=p.cycle.length;
-  if(!len) return {unit:'\u2014', type:'other'};
+  if(e&&e.unitId){ const u=unitById(e.unitId); return {unitId:e.unitId, unit:u?u.name:(e.unit||'\u2014'), type:e.type||(u?u.type:'other')}; }
+  if(e&&e.unit){ return {unitId:null, unit:e.unit, type:e.type||typeOf(e.unit)}; } // Altdaten-Fallback
+  const p=activePlan();
+  if(p.mode==='week'){ const wd=isoToDate(iso).getDay(); const id=(p.week&&p.week[wd])||''; const u=unitById(id); return {unitId:id, unit:u?u.name:'\u2014', type:u?u.type:'other'}; }
+  const len=p.cycle.length;
+  if(!len) return {unitId:null, unit:'\u2014', type:'other'};
   const idx=indexForISO(iso);
-  return {unit:p.cycle[idx], type:getType(idx)};
+  const id=p.cycle[idx]; const u=unitById(id);
+  return {unitId:id, unit:u?u.name:'\u2014', type:u?u.type:'other'};
 }
 function renderHistory(){
   const sub=`<div class="subtabs">
@@ -1049,7 +1534,7 @@ function historyActivityHtml(){
         });
         if(parts.length) summaryHtml=`<div class="hcardio">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
       } else {
-        const sets=e.sets&&e.sets[info.unit];
+        const sets=e.sets&&e.sets[info.unitId];
         if(sets){
           const n=Object.keys(sets).filter(exId=>exCountsOnDay(sets,exId)).length;
           if(n) summaryHtml=`<div class="hcardio">${n} \u00dcbung${n>1?'en':''} erfasst${e.sessionNote?' \u00b7 '+escapeHtml(short(e.sessionNote.replace(/\n/g,' '),34)):''}</div>`;
@@ -1080,11 +1565,13 @@ function historyActivityHtml(){
 /* Fortschritt: pro Einheit + Übung die Gewichtsentwicklung */
 function historyProgressHtml(){
   const p=activePlan();
+  // verwendete Units (dedupliziert) aus Zyklus oder Wochenplan
+  const ids=p.mode==='week'?Object.values(p.week||{}):p.cycle;
   const seen=new Set(); const units=[];
-  p.cycle.forEach((u,i)=>{
-    if(typeOf(u)==='rest'||getType(i)==='rest') return;
-    if(seen.has(u)) return;
-    seen.add(u); units.push({name:u, idx:i, type:getType(i)});
+  ids.forEach(id=>{
+    if(!id||seen.has(id)) return;
+    const u=unitById(id); if(!u||u.type==='rest') return;
+    seen.add(id); units.push({id, name:u.name, type:u.type});
   });
 
   // metric: 'top' = höchstes kg des Tages, 'avg' = Durchschnitt aller Sätze
@@ -1095,10 +1582,10 @@ function historyProgressHtml(){
     return Math.max(...vals);
   }
   // Sessions einer Übung sammeln: {date, kg(metrik), rows, note}
-  function seriesFor(unitName,exId){
+  function seriesFor(unitId,exId){
     const out=[];
     Object.keys(state.log).sort().forEach(d=>{
-      const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+      const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
       if(s&&s[exId]&&exCountsOnDay(s,exId)){
         const n=normSets(s[exId]);
         const kg=metricKg(n.rows);
@@ -1109,24 +1596,21 @@ function historyProgressHtml(){
   }
 
   let anyData=false;
-  // Bestimme aktuelle Einheit für Auto-Open (nur Krafttag, kein Restday, kein Einschub)
-  const todayIso2=todayISO();
-  const todayInsert2=(state.inserts||{})[todayIso2];
-  const curIdx=currentIndex();
-  const curType=getType(curIdx);
-  const curUnitName=(activePlan().cycle[curIdx]||'');
-  const autoOpenName=(todayInsert2||curType==='rest')?null:curUnitName;
-  // Initialisiere openProgUnits beim ersten Aufruf
+  // Auto-Open: aktuelle Einheit (nur Krafttag, kein Restday/Einschub)
+  const todayInsert2=(state.inserts||{})[todayISO()];
+  const curId=todayUnitId();
+  const curU=unitById(curId);
+  const autoOpenId=(todayInsert2||!curU||curU.type==='rest')?null:curId;
   if(openProgUnits===null){
     openProgUnits={};
-    if(autoOpenName) openProgUnits[autoOpenName]=true;
+    if(autoOpenId) openProgUnits[autoOpenId]=true;
   }
 
   const blocks=units.map(u=>{
-    const ex=(p.exercises&&p.exercises[u.name])||[];
+    const ex=getExercisesByUnitId(u.id);
     if(!ex.length) return '';
     const cards=ex.map(e=>{
-      const series=seriesFor(u.name,e.id);
+      const series=seriesFor(u.id,e.id);
       if(!series.length) return '';
       anyData=true;
       const latest=series[series.length-1];
@@ -1159,9 +1643,9 @@ function historyProgressHtml(){
       </div>`;
     }).filter(Boolean).join('');
     if(!cards) return '';
-    const isOpen=!!openProgUnits[u.name];
+    const isOpen=!!openProgUnits[u.id];
     return `<div class="prog-unit">
-      <div class="pu-head ${isOpen?'open':''}" onclick="toggleProgUnit('${escapeAttr(u.name)}')">
+      <div class="pu-head ${isOpen?'open':''}" onclick="toggleProgUnit('${escapeAttr(u.id)}')">
         <span class="tdot ${u.type}"></span>
         <span class="pu-name">${escapeHtml(u.name)}</span>
         <span class="pu-chev">${isOpen?'\u2303':'\u2304'}</span>
@@ -1331,13 +1815,307 @@ function buildChart(pts){
   </svg>`;
 }
 
+/* ============ ONBOARDING (erster Start) ============ */
+const OB_SUGGEST=[
+  {name:'R\u00fccken \u00b7 Bizeps', type:'pull', ex:['Lat-Zug','Rudern','Bizeps-Curl']},
+  {name:'Brust \u00b7 Schulter \u00b7 Trizeps', type:'push', ex:['Bankdr\u00fccken','Schulterdr\u00fccken','Trizeps-Dr\u00fccken']},
+  {name:'Beine \u00b7 Nacken', type:'legs', ex:['Beinpresse','Beinbeuger','Nackenheben']},
+  {name:'Push', type:'push', ex:['Bankdr\u00fccken','Schulterdr\u00fccken','Trizeps-Dr\u00fccken']},
+  {name:'Pull', type:'pull', ex:['Klimmzug','Rudern','Bizeps-Curl']},
+  {name:'Legs', type:'legs', ex:['Kniebeuge','Beinpresse','Wadenheben']},
+  {name:'Oberk\u00f6rper', type:'push', ex:['Bankdr\u00fccken','Rudern','Schulterdr\u00fccken']},
+  {name:'Unterk\u00f6rper', type:'legs', ex:['Kniebeuge','Beinpresse','Beinbeuger']},
+  {name:'Ganzk\u00f6rper', type:'other', ex:['Kniebeuge','Bankdr\u00fccken','Rudern']},
+  {name:'Active Rest', type:'rest', ex:[]}
+];
+function restartOnboarding(){
+  if(!confirm('Wirklich alles l\u00f6schen und neu einrichten? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden.')) return;
+  state=emptyState(); needsOnboarding=true; ob=null; obInit();
+  save(); render(); scrollAppTop();
+}
+function obInit(){
+  ob={ step:1, mode:'cycle', units:[], cycle:[], week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''}, openUnit:null, pick:null };
+}
+function obSetMode(m){ ob.mode=m; render(); }
+function obAddSuggest(idx){
+  const s=OB_SUGGEST[idx];
+  const uid='u_'+makeId();
+  ob.units.push({id:uid, name:s.name, type:s.type, exercises:s.ex.map(n=>({id:makeId(), name:n}))});
+  ob.openUnit=uid; render();
+}
+function obAddCustomUnit(){
+  const el=document.getElementById('ob-unit-name');
+  const name=(el&&el.value.trim())||'';
+  if(!name) return;
+  const uid='u_'+makeId();
+  ob.units.push({id:uid, name, type:'other', exercises:[]});
+  ob.openUnit=uid; render();
+}
+function obUnit(uid){ return ob.units.find(u=>u.id===uid); }
+function obRenameUnit(uid,v){ const u=obUnit(uid); if(u) u.name=v; }
+function obCycleType(uid){ const u=obUnit(uid); if(!u) return; const oi=TYPE_ORDER.indexOf(u.type); u.type=TYPE_ORDER[(oi+1)%TYPE_ORDER.length]; render(); }
+function obDelUnit(uid){
+  ob.units=ob.units.filter(u=>u.id!==uid);
+  ob.cycle=ob.cycle.filter(id=>id!==uid);
+  Object.keys(ob.week).forEach(d=>{ if(ob.week[d]===uid) ob.week[d]=''; });
+  if(ob.openUnit===uid) ob.openUnit=null;
+  render();
+}
+function obToggleUnit(uid){ ob.openUnit=ob.openUnit===uid?null:uid; render(); }
+function obAddEx(uid){ const u=obUnit(uid); if(u){ u.exercises.push({id:makeId(), name:''}); render(); } }
+function obRenameEx(uid,exId,v){ const u=obUnit(uid); if(u){ const e=u.exercises.find(x=>x.id===exId); if(e) e.name=v; } }
+function obDelEx(uid,exId){ const u=obUnit(uid); if(u){ u.exercises=u.exercises.filter(x=>x.id!==exId); render(); } }
+function obAddToCycle(uid){ ob.cycle.push(uid); ob.pick=null; render(); }
+function obRemoveCycle(i){ ob.cycle.splice(i,1); render(); }
+function obMoveCycle(i,dir){ const j=i+dir; if(j<0||j>=ob.cycle.length) return; [ob.cycle[i],ob.cycle[j]]=[ob.cycle[j],ob.cycle[i]]; render(); }
+function obOpenPick(ctx){ ob.pick=ctx; render(); }
+function obPick(uid){
+  if(ob.pick==='cycle') ob.cycle.push(uid);
+  else if(typeof ob.pick==='string'&&ob.pick.startsWith('week:')){ ob.week[+ob.pick.split(':')[1]]=uid; }
+  ob.pick=null; render();
+}
+function obClearWeek(day){ ob.week[day]=''; render(); }
+function obNext(){
+  if(ob.step===1){ ob.step=2; render(); scrollAppTop(); return; }
+  if(ob.step===2){
+    if(!ob.units.length){ alert('Lege mindestens eine Einheit an.'); return; }
+    // Zyklus mit allen Einheiten vorbefüllen (in Reihenfolge), Wochenplan leer lassen
+    if(ob.mode==='cycle'&&!ob.cycle.length) ob.cycle=ob.units.map(u=>u.id);
+    ob.step=3; render(); scrollAppTop(); return;
+  }
+}
+function obBack(){ if(ob.step>1){ ob.step--; render(); scrollAppTop(); } }
+function obFinish(){
+  // Validierung
+  if(ob.mode==='cycle'&&!ob.cycle.length){ alert('F\u00fcge mindestens einen Tag zum Zyklus hinzu.'); return; }
+  if(ob.mode==='week'&&!Object.values(ob.week).some(Boolean)){ alert('Weise mindestens einem Wochentag eine Einheit zu.'); return; }
+  // State aufbauen
+  const units={};
+  ob.units.forEach(u=>{ units[u.id]={id:u.id, name:u.name, type:u.type, exercises:u.exercises.filter(e=>e.name.trim()).map(e=>({id:e.id, name:e.name.trim()}))}; });
+  const p={ id:makeId(), name:'Mein Plan', mode:ob.mode,
+    cycle:ob.mode==='cycle'?ob.cycle.slice():[],
+    week:ob.mode==='week'?Object.assign({},ob.week):{0:'',1:'',2:'',3:'',4:'',5:'',6:''},
+    anchorISO:todayISO(), anchorDay:1 };
+  state={ units, plans:[p], activePlanId:p.id, log:{}, weight:[], inserts:{} };
+  needsOnboarding=false; ob=null; view='today';
+  save(); render(); scrollAppTop();
+}
+
+function renderOnboarding(){
+  if(!ob) obInit();
+  const step=ob.step;
+  const dots=[1,2,3].map(n=>`<span class="ob-dot ${n===step?'on':''} ${n<step?'done':''}"></span>`).join('');
+
+  if(step===1){
+    return `<div class="ob">
+      <div class="ob-steps">${dots}</div>
+      <div class="ob-hero">
+        <div class="ob-emoji">\ud83d\udcaa</div>
+        <h1 class="ob-title">Willkommen!</h1>
+        <p class="ob-text">Lass uns in 3 schnellen Schritten deinen Trainingsplan einrichten. Du kannst sp\u00e4ter alles \u00e4ndern.</p>
+      </div>
+      <div class="ob-q">Wie trainierst du?</div>
+      <button class="ob-choice ${ob.mode==='cycle'?'on':''}" onclick="obSetMode('cycle')">
+        <div class="ob-choice-h">\ud83d\udd01 Zyklus <span class="ob-rec">empfohlen bei flexiblen Tagen</span></div>
+        <div class="ob-choice-t">Eine rotierende Abfolge (z.B. Pull \u00b7 Push \u00b7 Pause \u00b7 Beine \u2026). L\u00e4uft unabh\u00e4ngig vom Wochentag und wartet, bis du eine Einheit abschlie\u00dft.</div>
+      </button>
+      <button class="ob-choice ${ob.mode==='week'?'on':''}" onclick="obSetMode('week')">
+        <div class="ob-choice-h">\ud83d\udcc5 Wochenplan</div>
+        <div class="ob-choice-t">Feste Wochentage \u2013 z.B. Montag Oberk\u00f6rper, Dienstag Unterk\u00f6rper, Mittwoch Pause. Jede Woche gleich.</div>
+      </button>
+      <button class="ob-next" onclick="obNext()">Weiter \u2192</button>
+    </div>`;
+  }
+
+  if(step===2){
+    const sugg=OB_SUGGEST.map((s,i)=>{
+      const added=ob.units.some(u=>u.name===s.name);
+      return `<button class="ob-sugg ${added?'used':''}" onclick="obAddSuggest(${i})" ${added?'disabled':''}>
+        <span class="uchip-dot ${s.type}"></span>${escapeHtml(s.name)} ${added?'\u2713':'+'}</button>`;
+    }).join('');
+    const unitCards=ob.units.map(u=>{
+      const open=ob.openUnit===u.id;
+      const isRestU=u.type==='rest';
+      return `<div class="pcard">
+        <div class="pcard-head ${open?'open':''}" onclick="obToggleUnit('${u.id}')">
+          <button class="tdot-btn ${u.type}" onclick="event.stopPropagation();obCycleType('${u.id}')" title="Farbe"></button>
+          <input class="pname-inp" value="${escapeAttr(u.name)}" onclick="event.stopPropagation()" oninput="obRenameUnit('${u.id}',this.value)" placeholder="Einheit-Name">
+          ${!isRestU?`<span class="pexcount">${u.exercises.length} \u00dcb.</span>`:'<span class="pexcount rest">Cardio</span>'}
+          <span class="pchev">${open?'\u2303':'\u2304'}</span>
+        </div>
+        ${open?`<div class="pcard-body">
+          ${isRestU?`<div class="ex-empty">Active Rest \u2013 hier wird sp\u00e4ter dein Cardio eingetragen, keine \u00dcbungen n\u00f6tig.</div>`:`
+          <div class="exdef">
+            <div class="exlabel">\u00dcbungen f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
+            ${u.exercises.map(e=>`<div class="exrow">
+              <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname" oninput="obRenameEx('${u.id}','${e.id}',this.value)">
+              <button class="iconbtn del" onclick="obDelEx('${u.id}','${e.id}')">\u2715</button>
+            </div>`).join('')}
+            <button class="ex-add" onclick="obAddEx('${u.id}')">+ \u00dcbung hinzuf\u00fcgen</button>
+          </div>`}
+          <div class="pcard-actions">
+            <button class="parrow del" onclick="event.stopPropagation();obDelUnit('${u.id}')">\u2715 Einheit l\u00f6schen</button>
+          </div>
+        </div>`:''}
+      </div>`;
+    }).join('');
+    return `<div class="ob">
+      <div class="ob-steps">${dots}</div>
+      <h1 class="ob-title sm">Deine Einheiten</h1>
+      <p class="ob-text">Tippe Vorschl\u00e4ge an oder erstelle eigene. \u00d6ffne eine Einheit, um \u00dcbungen hinzuzuf\u00fcgen.</p>
+      <div class="ob-q">Vorschl\u00e4ge</div>
+      <div class="ob-suggs">${sugg}</div>
+      <div class="ob-custom">
+        <input id="ob-unit-name" type="text" placeholder="Eigene Einheit \u2026" maxlength="40">
+        <button onclick="obAddCustomUnit()">+</button>
+      </div>
+      ${ob.units.length?`<div class="ob-q" style="margin-top:18px;">Angelegt (${ob.units.length})</div>
+        <div class="planlist">${unitCards}</div>`:'<div class="ex-empty" style="margin-top:14px;">Noch keine Einheit angelegt.</div>'}
+      <div class="ob-navrow">
+        <button class="ob-back" onclick="obBack()">\u2190 Zur\u00fcck</button>
+        <button class="ob-next" onclick="obNext()">Weiter \u2192</button>
+      </div>
+    </div>`;
+  }
+
+  // step 3
+  let body='';
+  if(ob.mode==='cycle'){
+    const seq=ob.cycle.map((uid,i)=>{
+      const u=obUnit(uid); const t=u?u.type:'other';
+      return `<div class="seqrow">
+        <span class="sq-num">${i+1}</span><span class="tdot ${t}"></span>
+        <span class="sq-name">${escapeHtml(short(u?u.name:'\u2014',22))}</span>
+        <button class="sq-btn" onclick="obMoveCycle(${i},-1)">\u25b2</button>
+        <button class="sq-btn" onclick="obMoveCycle(${i},1)">\u25bc</button>
+        <button class="sq-btn del" onclick="obRemoveCycle(${i})">\u2715</button>
+      </div>`;
+    }).join('');
+    const pick=ob.pick==='cycle'?`<div class="unit-picker"><div class="up-head"><span>Welche Einheit anh\u00e4ngen?</span><button class="up-close" onclick="obOpenPick(null)">\u2715</button></div>
+      <div class="up-chips">${ob.units.map(u=>`<button class="uchip ${u.type}" onclick="obPick('${u.id}')"><span class="uchip-dot ${u.type}"></span>${escapeHtml(short(u.name,22))}</button>`).join('')}</div></div>`
+      :`<button class="addbtn" onclick="obOpenPick('cycle')">+ Tag hinzuf\u00fcgen</button>`;
+    body=`<div class="ob-q">Reihenfolge im Zyklus</div>
+      <p class="ob-text">Die Abfolge l\u00e4uft in dieser Reihenfolge und wiederholt sich. Du kannst Einheiten mehrfach einbauen.</p>
+      <div class="seqlist">${seq||'<div class="ex-empty">Noch kein Tag.</div>'}</div>
+      ${pick}`;
+  } else {
+    const rows=[1,2,3,4,5,6,0].map(day=>{
+      const uid=ob.week[day]; const u=uid?obUnit(uid):null;
+      const picking=ob.pick==='week:'+day;
+      return `<div class="wkrow">
+        <div class="wk-day">${WEEKDAYS[day]}</div>
+        <button class="wk-assign ${u?'':'empty'}" onclick="obOpenPick('week:${day}')">
+          ${u?`<span class="tdot ${u.type}"></span>${escapeHtml(short(u.name,20))}`:'+ Einheit w\u00e4hlen'}
+        </button>
+        ${u?`<button class="wk-clear" onclick="obClearWeek(${day})">\u2715</button>`:''}
+        ${picking?`<div class="unit-picker"><div class="up-head"><span>Einheit f\u00fcr ${WEEKDAYS[day]}</span><button class="up-close" onclick="obOpenPick(null)">\u2715</button></div>
+          <div class="up-chips">${ob.units.map(u2=>`<button class="uchip ${u2.type}" onclick="obPick('${u2.id}')"><span class="uchip-dot ${u2.type}"></span>${escapeHtml(short(u2.name,22))}</button>`).join('')}</div></div>`:''}
+      </div>`;
+    }).join('');
+    body=`<div class="ob-q">Wochentage zuweisen</div>
+      <p class="ob-text">Weise jedem Tag eine Einheit zu. Leere Tage sind frei.</p>
+      <div class="wklist">${rows}</div>`;
+  }
+  return `<div class="ob">
+    <div class="ob-steps">${dots}</div>
+    <h1 class="ob-title sm">Fast fertig!</h1>
+    ${body}
+    <div class="ob-navrow">
+      <button class="ob-back" onclick="obBack()">\u2190 Zur\u00fcck</button>
+      <button class="ob-next" onclick="obFinish()">Los geht's! \ud83d\ude80</button>
+    </div>
+  </div>`;
+}
+
+/* ============ DATA VIEW ============ */
+function renderData(){
+  const planCount=state.plans.length;
+  let dayCount=0;
+  Object.keys(state.log).forEach(d=>{ if(state.log[d]&&state.log[d].done) dayCount++; });
+  const weightCount=state.weight.length;
+  const insertCount=Object.keys(state.inserts||{}).length;
+  return `
+    ${header()}
+    <div class="ptitle">Daten</div>
+    <div class="psub">Hier sicherst du deine komplette Trainings-App. Der Export enth\u00e4lt Pl\u00e4ne, Trainingstage, Gewichte, Sonder-Einheiten und Notizen.</div>
+
+    <div class="datacard">
+      <div class="dc-label">Backup erstellen</div>
+      <div class="dc-text">Speichert eine JSON-Datei auf deinem Handy. Diese Datei kannst du danach wieder importieren oder als Sicherheitskopie behalten.</div>
+      <button class="dc-btn primary" onclick="exportBackup()">Backup herunterladen</button>
+      <div class="dc-meta">Aktueller Stand: <b>${planCount}</b> Plan(e), <b>${dayCount}</b> Trainingstag(e), <b>${weightCount}</b> Gewichtseintrag/Eintr\u00e4ge, <b>${insertCount}</b> Sonder-Einheit(en).</div>
+    </div>
+
+    <div class="datacard">
+      <div class="dc-label">Backup importieren</div>
+      <div class="dc-text">Importiert eine vorher gespeicherte JSON-Datei. Achtung: Der aktuelle Speicher in diesem Browser wird dabei ersetzt.</div>
+      <button class="dc-btn ghost" onclick="document.getElementById('import-file').click()">Backup ausw\u00e4hlen</button>
+      <input id="import-file" type="file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    </div>
+
+    <div class="datacard">
+      <div class="dc-label">Einrichtung wiederholen</div>
+      <div class="dc-text">Startet das Onboarding neu und setzt die App komplett zur\u00fcck (alle Pl\u00e4ne, Einheiten, Trainingstage und Gewichte werden gel\u00f6scht).</div>
+      <button class="dc-btn ghost" style="border-color:var(--push);color:var(--push);" onclick="restartOnboarding()">App zur\u00fccksetzen & neu einrichten</button>
+    </div>
+
+    <div class="foot">Tipp: Erstelle vor gr\u00f6\u00dferen \u00c4nderungen oder vor einem Browserwechsel immer ein Backup.</div>
+  `;
+}
+
+function exportBackup(){
+  try{
+    state.lastBackup=todayISO();
+    const data=JSON.stringify(state,null,2);
+    const blob=new Blob([data],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const d=new Date();
+    const stamp=d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+    a.href=url; a.download='trainingszyklus-backup-'+stamp+'.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    save(); render();
+  }catch(e){ alert('Export fehlgeschlagen: '+e.message); }
+}
+/* Tage seit letztem Backup (null = noch nie) */
+function daysSinceBackup(){
+  if(!state.lastBackup) return null;
+  return diffDays(todayISO(), state.lastBackup);
+}
+function importBackup(input){
+  const file=input.files&&input.files[0];
+  if(!file) return;
+  if(!confirm('Aktuellen Speicher wirklich mit dem Backup ersetzen? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden.')){ input.value=''; return; }
+  const reader=new FileReader();
+  reader.onload=function(){
+    try{
+      const obj=JSON.parse(reader.result);
+      if(!obj||!Array.isArray(obj.plans)) throw new Error('Ung\u00fcltige Datei');
+      state=obj;
+      if(!state.units||typeof state.units!=='object') state.units=defaultUnits();
+      if(!state.log) state.log={};
+      if(!Array.isArray(state.weight)) state.weight=[];
+      if(!state.inserts) state.inserts={};
+      state.plans.forEach(p=>{ if(!p.mode) p.mode='cycle'; if(!Array.isArray(p.cycle)) p.cycle=[]; if(!p.week) p.week={0:'',1:'',2:'',3:'',4:'',5:'',6:''}; });
+      if(!state.activePlanId||!state.plans.find(p=>p.id===state.activePlanId)) state.activePlanId=state.plans[0].id;
+      save(); view='today'; render();
+      alert('Backup erfolgreich importiert!');
+    }catch(e){ alert('Import fehlgeschlagen: '+e.message); }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
 /* ============ NAV ============ */
 function renderNav(){
   const nav=document.getElementById('nav');
   const items=[
-    {id:'today', label:'Training', svg:'<path d="M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12"/>'},
+    {id:'today', label:'Heute', svg:'<path d="M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12"/>'},
+    {id:'plan', label:'Plan', svg:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 15l2 2 3-4"/>'},
     {id:'history', label:'Verlauf', svg:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>'},
-    {id:'body', label:'K\u00f6rper', svg:'<path d="M4 20c0-3 3.5-5 8-5s8 2 8 5"/><circle cx="12" cy="8" r="4"/>'}
+    {id:'body', label:'K\u00f6rper', svg:'<path d="M4 20c0-3 3.5-5 8-5s8 2 8 5"/><circle cx="12" cy="8" r="4"/>'},
+    {id:'data', label:'Daten', svg:'<path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/>'}
   ];
   nav.innerHTML=`<div class="navinner">${items.map(it=>
     `<button class="navbtn ${view===it.id?'active':''}" onclick="setView('${it.id}')">
@@ -1368,13 +2146,19 @@ function removeInsert(date){
   if(state.inserts) delete state.inserts[date];
   save(); render();
 }
-function setView(v){ view=v; openNoteIdx=-1; editing=false; render(); window.scrollTo(0,0); }
-function setHistSub(s){ histSub=s; if(s==='progress') openProgUnits=null; render(); window.scrollTo(0,0); }
+function scrollAppTop(){ const a=document.getElementById('app'); if(a&&a.scrollTo) a.scrollTo(0,0); else if(a) a.scrollTop=0; if(window.scrollTo) window.scrollTo(0,0); }
+function setView(v){ view=v; openNoteIdx=-1; editing=false; if(v!=='plan'){ planOpenIdx=-1; planNameEdit=false; pickerFor=null; libOpenId=null; } render(); scrollAppTop(); }
+function gotoPlanUnit(i){ view='plan'; editing=false; planOpenIdx=i; render(); scrollAppTop(); }
+function gotoPlanUnitId(unitId){ const p=activePlan(); const i=p.cycle.indexOf(unitId); view='plan'; editing=false; planOpenIdx=i>=0?i:-1; render(); scrollAppTop(); }
+function gotoPlanTermine(){ view='plan'; editing=false; render(); setTimeout(()=>{ const el=document.getElementById('termine-anchor'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },60); }
+function togglePlanCard(i){ planOpenIdx=(planOpenIdx===i)?-1:i; render(); }
+function togglePlanNameEdit(){ planNameEdit=!planNameEdit; render(); }
+function setHistSub(s){ histSub=s; if(s==='progress') openProgUnits=null; render(); scrollAppTop(); }
 function setProgMetric(m){ progMetric=m; render(); }
-function toggleProgUnit(name){ if(!openProgUnits) openProgUnits={}; openProgUnits[name]=!openProgUnits[name]; render(); }
+function toggleProgUnit(id){ if(!openProgUnits) openProgUnits={}; openProgUnits[id]=!openProgUnits[id]; render(); }
 function setRange(r){ weightRange=r; render(); }
 function setWeightDate(v){ weightDate=v||todayISO(); render(); }
-function editWeightEntry(date){ weightDate=date; render(); window.scrollTo(0,0); }
+function editWeightEntry(date){ weightDate=date; render(); scrollAppTop(); }
 function deleteWeight(date){
   if(!confirm('Diesen Eintrag l\u00f6schen?')) return;
   state.weight=state.weight.filter(e=>e.date!==date);
@@ -1383,10 +2167,14 @@ function deleteWeight(date){
 }
 function toggleEdit(){ editing=!editing; openNoteIdx=-1; render(); }
 function togglePicker(){ const p=document.getElementById('picker'); if(p) p.classList.toggle('show'); }
-function switchPlan(id){ state.activePlanId=id; editing=false; openNoteIdx=-1; save(); render(); }
+function switchPlan(id){ state.activePlanId=id; editing=false; openNoteIdx=-1; planOpenIdx=-1; planNameEdit=false; save(); render(); }
 function addPlan(){
-  const p={id:makeId(),name:'Neuer Plan',cycle:['Einheit 1'],cycleTypes:[null],anchorISO:todayISO(),anchorDay:1,dayNotes:{}};
-  state.plans.push(p); state.activePlanId=p.id; editing=true; save(); render();
+  // neuer Plan mit einer frischen Einheit
+  const uid='u_'+makeId();
+  state.units[uid]={id:uid, name:'Einheit 1', type:'other', exercises:[]};
+  const p={id:makeId(), name:'Neuer Plan', mode:'cycle', cycle:[uid],
+    week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''}, anchorISO:todayISO(), anchorDay:1};
+  state.plans.push(p); state.activePlanId=p.id; planNameEdit=true; planOpenIdx=-1; save(); render();
 }
 function deletePlan(id){
   if(!confirm('Plan wirklich l\u00f6schen?')) return;
@@ -1396,51 +2184,45 @@ function deletePlan(id){
 function editPlanName(v){ activePlan().name=v; save(); }
 function setToday(i){ const p=activePlan(); p.anchorISO=todayISO(); p.anchorDay=i+1; save(); render(); }
 const TYPE_ORDER=['pull','push','legs','rest','other'];
-function cycleType(i){
-  const p=activePlan();
-  if(!p.cycleTypes) p.cycleTypes=new Array(p.cycle.length).fill(null);
-  const oi=TYPE_ORDER.indexOf(p.cycleTypes[i]);
-  p.cycleTypes[i]=oi<TYPE_ORDER.length-1?TYPE_ORDER[oi+1]:null;
+/* Typ/Farbe der Unit umschalten (gilt überall wo die Unit verwendet wird) */
+function cycleTypeUnit(unitId){
+  const u=unitById(unitId); if(!u) return;
+  const oi=TYPE_ORDER.indexOf(u.type);
+  u.type=TYPE_ORDER[(oi+1)%TYPE_ORDER.length];
   save(); render();
 }
-function editUnit(i,v){
-  const p=activePlan();
-  const old=p.cycle[i];
-  // wenn dieser Name nur an dieser Stelle vorkam, Übungen auf neuen Namen umziehen
-  if(p.exercises&&p.exercises[old]!==undefined){
-    const stillUsedElsewhere=p.cycle.some((u,k)=>k!==i&&u===old);
-    if(!stillUsedElsewhere&&v&&v!==old&&p.exercises[v]===undefined){
-      p.exercises[v]=p.exercises[old];
-      delete p.exercises[old];
-    }
-  }
-  p.cycle[i]=v; save();
+/* Unit umbenennen (gilt überall) */
+function renameUnit(unitId,v){
+  const u=unitById(unitId); if(!u) return;
+  u.name=v; save();
 }
+/* Einheit aus dem Zyklus entfernen (Unit-Definition bleibt in der Bibliothek erhalten) */
 function delUnit(i){
   const p=activePlan();
   if(p.cycle.length<=1) return;
   p.cycle.splice(i,1);
-  if(p.cycleTypes) p.cycleTypes.splice(i,1);
-  if(p.dayNotes){ const nn={}; Object.keys(p.dayNotes).forEach(k=>{ const ki=+k;
-    if(ki<i) nn[ki]=p.dayNotes[k]; else if(ki>i) nn[ki-1]=p.dayNotes[k]; }); p.dayNotes=nn; }
   if(p.anchorDay>p.cycle.length) p.anchorDay=1;
+  if(planOpenIdx===i) planOpenIdx=-1; else if(planOpenIdx>i) planOpenIdx--;
   save(); render();
 }
-function addUnit(){ const p=activePlan(); p.cycle.push('Neue Einheit'); if(p.cycleTypes) p.cycleTypes.push(null); save(); render(); }
+/* Neue Einheit anlegen + an den Zyklus anhängen */
+function addUnit(){
+  const p=activePlan();
+  const uid='u_'+makeId();
+  state.units[uid]={id:uid, name:'Neue Einheit', type:'other', exercises:[]};
+  p.cycle.push(uid);
+  planOpenIdx=p.cycle.length-1;
+  save(); render();
+}
 function move(i,dir){
   const p=activePlan(), c=p.cycle, j=i+dir;
   if(j<0||j>=c.length) return;
   [c[i],c[j]]=[c[j],c[i]];
-  if(p.cycleTypes) [p.cycleTypes[i],p.cycleTypes[j]]=[p.cycleTypes[j],p.cycleTypes[i]];
-  if(!p.dayNotes) p.dayNotes={};
-  const tmp=p.dayNotes[i];
-  if(p.dayNotes[j]!==undefined) p.dayNotes[i]=p.dayNotes[j]; else delete p.dayNotes[i];
-  if(tmp!==undefined) p.dayNotes[j]=tmp; else delete p.dayNotes[j];
+  if(planOpenIdx===i) planOpenIdx=j; else if(planOpenIdx===j) planOpenIdx=i;
   save(); render();
 }
 function toggleNote(i){ if(editing) return; openNoteIdx=(openNoteIdx===i)?-1:i; render(); }
-function updateNote(v){ setNote(currentIndex(), v); autoresize('.note-ta'); }
-function updateDayNote(i,v){ setNote(i,v); autoresize('.note-panel .note-ta'); }
+function updateNote(v){ autoresize('.note-ta'); }
 function autoresize(sel){ const ta=document.querySelector(sel); if(ta){ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; } }
 
 function toggleDone(){
@@ -1450,22 +2232,23 @@ function toggleDone(){
   if(e.done){ e.done=false; }
   else{
     e.done=true;
-    const p=activePlan(), idx=currentIndex();
-    e.planId=p.id; e.unit=p.cycle[idx]; e.type=getType(idx); e.dayIdx=idx;
+    const p=activePlan();
+    const uid=todayUnitId();
+    const u=unitById(uid);
+    e.planId=p.id; e.unitId=uid; e.type=u?u.type:'other';
     // Sätze vom letzten Mal vorausfüllen (nur wenn heute noch nichts erfasst)
-    if(getType(idx)!=='rest'){
-      const unit=p.cycle[idx];
-      const ex=getExercises(idx);
+    if(u&&u.type!=='rest'){
+      const ex=u.exercises||[];
       if(ex.length){
         if(!e.sets) e.sets={};
-        if(!e.sets[unit]) e.sets[unit]={};
+        if(!e.sets[uid]) e.sets[uid]={};
         ex.forEach(x=>{
-          const already=e.sets[unit][x.id];
+          const already=e.sets[uid][x.id];
           const hasData=already&&Array.isArray(already.rows)&&already.rows.some(r=>r.kg!=null);
           if(!hasData){
-            const last=lastSessionFor(unit,x.id);
+            const last=lastSessionFor(uid,x.id);
             if(last&&last.rows.length){
-              e.sets[unit][x.id]={rows:last.rows.map(r=>({kg:r.kg!=null?r.kg:null, reps:r.reps!=null?r.reps:null}))};
+              e.sets[uid][x.id]={rows:last.rows.map(r=>({kg:r.kg!=null?r.kg:null, reps:r.reps!=null?r.reps:null}))};
             }
           }
         });
@@ -1508,6 +2291,42 @@ function escapeAttr(s){ return (s||'').replace(/["&<>]/g,c=>({'"':'&quot;','&':'
 function short(s,n){ n=n||16; return s.length>n?s.slice(0,n-1)+'\u2026':s; }
 
 (async function init(){ await load(); render(); })();
+
+/* Pull-to-Refresh (eigener, da der Scroll im #app-Container läuft) */
+(function initPullToRefresh(){
+  const app=document.getElementById('app');
+  const ptr=document.getElementById('ptr');
+  if(!app||!ptr) return;
+  let startY=0, pulling=false, dist=0;
+  const TH=70, MAX=110;
+  app.addEventListener('touchstart',function(e){
+    if(app.scrollTop<=0 && e.touches.length===1){ startY=e.touches[0].clientY; pulling=true; dist=0; ptr.classList.remove('snap'); }
+    else { pulling=false; }
+  },{passive:true});
+  app.addEventListener('touchmove',function(e){
+    if(!pulling) return;
+    if(app.scrollTop>0){ pulling=false; ptr.style.transform='translateY(-60px)'; return; }
+    const dy=e.touches[0].clientY-startY;
+    if(dy<=0){ dist=0; ptr.style.transform='translateY(-60px)'; return; }
+    dist=Math.min(dy*0.5, MAX);
+    ptr.style.transform='translateY('+(dist-60)+'px)';
+    ptr.style.opacity=Math.min(dist/TH,1);
+  },{passive:true});
+  function end(){
+    if(!pulling) return;
+    pulling=false;
+    ptr.classList.add('snap');
+    if(dist>=TH){
+      ptr.style.transform='translateY(12px)';
+      ptr.classList.add('spin');
+      setTimeout(function(){ location.reload(); },350);
+    } else {
+      ptr.style.transform='translateY(-60px)';
+    }
+  }
+  app.addEventListener('touchend',end,{passive:true});
+  app.addEventListener('touchcancel',end,{passive:true});
+})();
 </script>
 </body>
 </html>
