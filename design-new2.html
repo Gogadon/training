@@ -201,6 +201,10 @@
   .setrow.warm .ef input:focus{border-color:var(--push);}
   .warmhint{font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.4;opacity:.85;}
   .warmhint b{color:var(--push);}
+  .pr-badge{font-size:11.5px;font-weight:700;color:#0c0c0e;background:var(--accent);
+    border-radius:7px;padding:4px 9px;margin:-2px 0 9px 37px;display:inline-block;
+    animation:prpop .35s ease both;}
+  @keyframes prpop{0%{transform:scale(.7);opacity:0;}60%{transform:scale(1.08);}100%{transform:scale(1);opacity:1;}}
   .setrow .ef{flex:1;display:flex;flex-direction:column;gap:3px;}
   .setrow .ef.kg{flex:1.25;}
   .setrow .ef input{background:var(--bg);border:1px solid var(--line);color:var(--text);
@@ -806,12 +810,48 @@ function ensureExEntry(unitId,exId){
   }
   return e.sets[unitId][exId];
 }
+/* Bestwerte einer Übung aus FRÜHEREN Sessions (vor heute), nur Arbeitssätze */
+function bestBeforeToday(unitId,exId){
+  const today=todayISO();
+  let maxKg=null, repsAtMax=null;
+  Object.keys(state.log).filter(d=>d<today).forEach(d=>{
+    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
+    if(s&&s[exId]){
+      normSets(s[exId]).rows.forEach(r=>{
+        if(r.warmup||r.kg==null) return;
+        if(maxKg==null||r.kg>maxKg){ maxKg=r.kg; repsAtMax=(r.reps!=null?r.reps:null); }
+        else if(r.kg===maxKg&&r.reps!=null&&(repsAtMax==null||r.reps>repsAtMax)){ repsAtMax=r.reps; }
+      });
+    }
+  });
+  return {maxKg, repsAtMax};
+}
+/* Ist diese Zeile ein neuer Rekord? -> null | 'weight' | 'reps' */
+function rowPR(unitId,exId,row){
+  if(!row||row.warmup) return null;
+  if(row.kg==null||row.reps==null) return null;
+  const {maxKg, repsAtMax}=bestBeforeToday(unitId,exId);
+  if(maxKg==null) return null; // erste Session -> kein Vergleich
+  if(row.kg>maxKg) return 'weight';
+  if(row.kg===maxKg&&repsAtMax!=null&&row.reps>repsAtMax) return 'reps';
+  return null;
+}
+function prBadgeId(unitId,exId,rowIdx){ return 'pr_'+unitId+'_'+exId+'_'+rowIdx; }
+function updatePRBadge(unitId,exId,rowIdx,row){
+  const el=document.getElementById(prBadgeId(unitId,exId,rowIdx));
+  if(!el) return;
+  const pr=rowPR(unitId,exId,row);
+  if(pr){ el.textContent='\ud83c\udf89 Neuer Rekord!'+(pr==='reps'?' (mehr Wdh)':''); el.style.display=''; }
+  else { el.style.display='none'; }
+}
 function saveSetRow(unitName,exId,rowIdx,field,val){
   const entry=ensureExEntry(unitName,exId);
   while(entry.rows.length<=rowIdx) entry.rows.push({kg:null,reps:null});
   const num=val===''?null:parseFloat(val.replace(',','.'));
   entry.rows[rowIdx][field]=(num!=null&&!isNaN(num))?num:null;
   save();
+  // Live-Rekord-Hinweis aktualisieren (ohne Neu-Render, damit der Fokus bleibt)
+  updatePRBadge(unitName,exId,rowIdx,entry.rows[rowIdx]);
 }
 function addSetRow(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
@@ -1355,13 +1395,16 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
       const warm=!!r.warmup;
       let label;
       if(warm){ label='W'; } else { workNum++; label=workNum; }
+      const pr=rowPR(unitId,e.id,r);
+      const prTxt='\ud83c\udf89 Neuer Rekord!'+(pr==='reps'?' (mehr Wdh)':'');
       return `<div class="setrow${warm?' warm':''}">
       <button class="setnum tog${warm?' warm':''}" onclick="toggleWarmup('${unitAttr}','${e.id}',${ri})" title="Aufw\u00e4rmsatz umschalten">${label}</button>
       <div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>
       <span class="ex-x">\u00d7</span>
       <div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>
       <button class="setdel" onclick="delSetRow('${unitAttr}','${e.id}',${ri})">\u2715</button>
-    </div>`;
+    </div>
+    <div class="pr-badge" id="${prBadgeId(unitId,e.id,ri)}"${pr?'':' style="display:none"'}>${prTxt}</div>`;
     }).join('');
     const body=`<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
