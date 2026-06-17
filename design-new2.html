@@ -193,6 +193,14 @@
   .ex-body{padding:0 13px 13px;}
   .setrow{display:flex;gap:7px;align-items:center;margin-bottom:7px;}
   .setrow .setnum{font-family:'Anton',sans-serif;font-size:14px;color:var(--muted);min-width:20px;text-align:center;flex-shrink:0;}
+  .setrow .setnum.tog{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+    width:30px;height:34px;min-width:30px;cursor:pointer;padding:0;transition:.12s;line-height:1;}
+  .setrow .setnum.tog:active{transform:scale(.94);}
+  .setrow .setnum.tog.warm{background:rgba(255,106,61,.16);border-color:var(--push);color:var(--push);}
+  .setrow.warm .ef input{border-color:rgba(255,106,61,.35);}
+  .setrow.warm .ef input:focus{border-color:var(--push);}
+  .warmhint{font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.4;opacity:.85;}
+  .warmhint b{color:var(--push);}
   .setrow .ef{flex:1;display:flex;flex-direction:column;gap:3px;}
   .setrow .ef.kg{flex:1.25;}
   .setrow .ef input{background:var(--bg);border:1px solid var(--line);color:var(--text);
@@ -497,6 +505,27 @@
   .up-new{width:100%;background:transparent;border:1px dashed var(--accent);color:var(--accent);
     border-radius:11px;padding:12px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
 
+  /* Wochenvolumen */
+  .volcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px 16px 12px;margin-bottom:14px;animation:rise .4s ease both;}
+  .volcard-head{display:flex;align-items:center;gap:9px;margin-bottom:4px;}
+  .volcard-head .tdot{flex-shrink:0;}
+  .vol-name{flex:1;font-size:15px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .vol-cur{font-family:'Anton',sans-serif;font-size:24px;color:var(--accent);}
+  .vol-cur small{font-size:12px;color:var(--muted);}
+  .vol-trend{font-size:11.5px;margin-bottom:12px;}
+  .vol-up{color:var(--accent);}
+  .vol-down{color:var(--push);}
+  .vol-flat{color:var(--muted);}
+  .volbars{display:flex;gap:10px;align-items:flex-end;height:96px;}
+  .volbar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;}
+  .volbar-wrap{flex:1;width:100%;display:flex;align-items:flex-end;}
+  .volbar{width:100%;background:var(--surface-2);border-radius:6px 6px 0 0;transition:height .4s ease;min-height:3px;}
+  .volbar.cur{background:linear-gradient(to top,var(--accent),#a8d617);}
+  .volbar-val{font-size:10.5px;color:var(--muted);font-weight:600;}
+  .volbar-lbl{font-size:10px;color:var(--muted);}
+  .volbar-lbl.cur{color:var(--accent);font-weight:700;}
+
   /* Backup-Erinnerung */
   .backup-banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(255,106,61,.14),var(--surface));
     border:1px solid var(--push);border-radius:14px;padding:13px 15px;margin-bottom:16px;cursor:pointer;animation:rise .4s ease both;}
@@ -713,6 +742,7 @@ function sessionVolume(iso,unitId){
     const s=sets[exId];
     if(!s||s.checked!==true) return; // nur explizit abgehakte zählen (kein Altdaten-Fallback)
     normSets(s).rows.forEach(r=>{
+      if(r.warmup) return; // Aufwärmsätze zählen nicht ins Volumen
       if(r.kg!=null&&r.reps!=null){ total+=r.kg*r.reps; setCount++; }
     });
   });
@@ -795,6 +825,13 @@ function delSetRow(unitName,exId,rowIdx){
   entry.rows.splice(rowIdx,1);
   save(); render();
 }
+/* Satz als Aufwärm- bzw. Arbeitssatz umschalten */
+function toggleWarmup(unitName,exId,rowIdx){
+  const entry=ensureExEntry(unitName,exId);
+  if(!entry.rows[rowIdx]) return;
+  entry.rows[rowIdx].warmup=!entry.rows[rowIdx].warmup;
+  save(); render();
+}
 /* Durchschnitts-kg einer Übung an einem Tag (für Chart) */
 function avgKg(entry){
   const e=normSets(entry);
@@ -856,12 +893,17 @@ function isExOpen(unitName,exId){
 /* Kurz-Zusammenfassung für die Kopfzeile, z.B. "4 Sätze · 45–47,5 kg" */
 function exSummary(unitName,exId){
   const e=getExEntry(todayISO(),unitName,exId);
-  const kgs=e.rows.map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
-  if(!kgs.length) return 'keine Werte';
   const n=e.rows.length;
+  const warmCount=e.rows.filter(r=>r.warmup).length;
+  // kg-Bereich aus Arbeitssätzen (Aufwärmen würde den Min-Wert verfälschen)
+  const workKgs=e.rows.filter(r=>!r.warmup).map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
+  const anyKgs=e.rows.map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
+  const kgs=workKgs.length?workKgs:anyKgs;
+  if(!kgs.length) return 'keine Werte';
   const min=Math.min(...kgs), max=Math.max(...kgs);
   const kgTxt=min===max?`${fmt(min)} kg`:`${fmt(min)}\u2013${fmt(max)} kg`;
-  return `${n} ${n>1?'S\u00e4tze':'Satz'} \u00b7 ${kgTxt}`;
+  const warmTxt=warmCount?` \u00b7 ${warmCount} Aufw.`:'';
+  return `${n} ${n>1?'S\u00e4tze':'Satz'}${warmTxt} \u00b7 ${kgTxt}`;
 }
 /* --- Dynamische Zyklus-Berechnung ---
    Läuft von anchorISO bis gestern durch und rückt nur vor wenn:
@@ -1305,19 +1347,26 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
     let lastHtml='';
     if(last){
       const d=isoToDate(last.date);
-      const summary=last.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}`).join(', ');
+      const summary=last.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
       lastHtml=`<div class="ex-last">Zuletzt (${d.getDate()}.${d.getMonth()+1}.): <b>${escapeHtml(summary)}</b></div>`;
     }
-    const setRows=rows.map((r,ri)=>`<div class="setrow">
-      <span class="setnum">${ri+1}</span>
+    let workNum=0;
+    const setRows=rows.map((r,ri)=>{
+      const warm=!!r.warmup;
+      let label;
+      if(warm){ label='W'; } else { workNum++; label=workNum; }
+      return `<div class="setrow${warm?' warm':''}">
+      <button class="setnum tog${warm?' warm':''}" onclick="toggleWarmup('${unitAttr}','${e.id}',${ri})" title="Aufw\u00e4rmsatz umschalten">${label}</button>
       <div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>
       <span class="ex-x">\u00d7</span>
       <div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>
       <button class="setdel" onclick="delSetRow('${unitAttr}','${e.id}',${ri})">\u2715</button>
-    </div>`).join('');
+    </div>`;
+    }).join('');
     const body=`<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
+      <div class="warmhint">Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
       ${lastHtml}`;
     return `<div class="ex-card${checked?' checked':''}">
       <div class="ex-head" onclick="toggleExOpen('${unitAttr}','${e.id}')">
@@ -1446,13 +1495,91 @@ function renderHistory(){
   const sub=`<div class="subtabs">
     <button class="subtab ${histSub==='activity'?'active':''}" onclick="setHistSub('activity')">Aktivit\u00e4t</button>
     <button class="subtab ${histSub==='progress'?'active':''}" onclick="setHistSub('progress')">Fortschritt</button>
+    <button class="subtab ${histSub==='volume'?'active':''}" onclick="setHistSub('volume')">Volumen</button>
   </div>`;
   return `
     ${header()}
     <div class="ptitle">Verlauf</div>
     ${sub}
-    ${histSub==='activity'?historyActivityHtml():historyProgressHtml()}
+    ${histSub==='activity'?historyActivityHtml():histSub==='volume'?historyVolumeHtml():historyProgressHtml()}
   `;
+}
+
+/* Wochenvolumen pro Einheit: Summe kg×Wdh (nur Arbeitssätze) aller Sessions
+   einer Unit-ID innerhalb einer Kalenderwoche (Mo–So), letzte 4 Wochen. */
+function weekStartMonday(d){
+  const x=new Date(d); x.setHours(0,0,0,0);
+  const off=(x.getDay()+6)%7; // Mo=0
+  x.setDate(x.getDate()-off);
+  return x;
+}
+function weeklyVolumeData(){
+  const WEEKS=4;
+  const mon0=weekStartMonday(new Date());
+  const starts=[];
+  for(let i=WEEKS-1;i>=0;i--){ const s=new Date(mon0); s.setDate(s.getDate()-i*7); starts.push(s); }
+  const startIso=starts.map(isoOf);
+  // Einheiten in Verwendung (kein Rest)
+  const p=activePlan();
+  const ids=p.mode==='week'?Object.values(p.week||{}):p.cycle;
+  const seen=new Set(); const units=[];
+  ids.forEach(id=>{ if(!id||seen.has(id)) return; const u=unitById(id); if(!u||u.type==='rest') return; seen.add(id); units.push(u); });
+  // pro Unit ein Array mit 4 Wochensummen
+  const data={};
+  units.forEach(u=>{ data[u.id]=new Array(WEEKS).fill(0); });
+  const firstMon=starts[0];
+  Object.keys(state.log).forEach(date=>{
+    const e=state.log[date]; if(!e||!e.unitId||!data[e.unitId]) return;
+    const dd=isoToDate(date); if(dd<firstMon) return;
+    const wkMon=weekStartMonday(dd); const wi=startIso.indexOf(isoOf(wkMon));
+    if(wi<0) return;
+    data[e.unitId][wi]+=sessionVolume(date,e.unitId).total;
+  });
+  return {units, starts, data};
+}
+function historyVolumeHtml(){
+  const {units, starts, data}=weeklyVolumeData();
+  if(!units.length) return `<div class="empty-state">Noch keine Einheiten f\u00fcr die Volumen-Auswertung.</div>`;
+  // gibt es überhaupt Daten?
+  const anyData=units.some(u=>data[u.id].some(v=>v>0));
+  if(!anyData) return `<div class="empty-state">Noch keine abgeschlossenen Sessions in den letzten 4 Wochen.<br>Sobald du trainierst, erscheint hier dein Wochenvolumen pro Einheit.</div>`;
+  const wkLabels=starts.map((s,i)=>{
+    if(i===starts.length-1) return 'diese';
+    const diff=starts.length-1-i;
+    return 'vor '+diff;
+  });
+  const cards=units.map(u=>{
+    const vals=data[u.id];
+    if(!vals.some(v=>v>0)) return '';
+    const max=Math.max(...vals,1);
+    const cur=vals[vals.length-1];
+    const prev=vals[vals.length-2]||0;
+    let trend='';
+    if(prev>0){ const d=cur-prev; const pct=Math.round(d/prev*100);
+      if(d>0) trend=`<span class="vol-up">+${pct}% ggü. Vorwoche \u2191</span>`;
+      else if(d<0) trend=`<span class="vol-down">${pct}% ggü. Vorwoche \u2193</span>`;
+      else trend=`<span class="vol-flat">gleich wie Vorwoche</span>`;
+    } else if(cur>0){ trend=`<span class="vol-flat">erste Trainingswoche</span>`; }
+    const bars=vals.map((v,i)=>{
+      const h=Math.round(v/max*100);
+      const isCur=i===vals.length-1;
+      return `<div class="volbar-col">
+        <div class="volbar-wrap"><div class="volbar ${isCur?'cur':''}" style="height:${Math.max(h,2)}%"></div></div>
+        <div class="volbar-val">${v>0?fmt(Math.round(v/100)/10)+'t':'\u2013'}</div>
+        <div class="volbar-lbl ${isCur?'cur':''}">${wkLabels[i]}</div>
+      </div>`;
+    }).join('');
+    return `<div class="volcard">
+      <div class="volcard-head">
+        <span class="tdot ${u.type}"></span>
+        <span class="vol-name">${escapeHtml(u.name)}</span>
+        <span class="vol-cur">${fmt(cur)}<small> kg</small></span>
+      </div>
+      ${trend?`<div class="vol-trend">${trend}</div>`:''}
+      <div class="volbars">${bars}</div>
+    </div>`;
+  }).filter(Boolean).join('');
+  return `<div class="hint" style="margin-bottom:14px;">Bewegtes Gewicht pro Einheit und Woche (nur Arbeitss\u00e4tze, Mo\u2013So). „t" = Tonnen.</div>${cards}`;
 }
 
 function historyActivityHtml(){
@@ -1525,9 +1652,9 @@ function historyProgressHtml(){
     seen.add(id); units.push({id, name:u.name, type:u.type});
   });
 
-  // metric: 'top' = höchstes kg des Tages, 'avg' = Durchschnitt aller Sätze
+  // metric: 'top' = höchstes kg des Tages, 'avg' = Durchschnitt — NUR Arbeitssätze
   function metricKg(rows){
-    const vals=rows.map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
+    const vals=rows.filter(r=>!r.warmup).map(r=>r.kg).filter(v=>v!=null&&!isNaN(v));
     if(!vals.length) return null;
     if(progMetric==='avg') return vals.reduce((a,b)=>a+b,0)/vals.length;
     return Math.max(...vals);
@@ -1578,7 +1705,7 @@ function historyProgressHtml(){
         let kgCls='';
         if(prev){ if(s.kg>prev.kg) kgCls='inc'; else if(s.kg<prev.kg) kgCls='dec'; }
         const d=isoToDate(s.date);
-        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}`).join(', ');
+        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
         return `<div class="pp">
           <span class="ppd">${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(2)}</span>
           <span class="ppk ${kgCls}">${fmt(s.kg)} kg${kgCls==='inc'?' \u2191':kgCls==='dec'?' \u2193':''}</span>
