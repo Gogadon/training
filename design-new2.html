@@ -550,6 +550,23 @@
   #ptr.spin .ptr-c{animation:ptrspin .7s linear infinite;}
   @keyframes ptrspin{to{transform:rotate(360deg);}}
 
+  /* Progressionsregel in Bibliothek */
+  .exrow-wrap{margin-bottom:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 12px;}
+  .exrow-wrap .exrow{border:none;background:none;padding:0;margin-bottom:8px;}
+  .prog-rule{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;}
+  .prog-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;flex-shrink:0;}
+  .prog-type-btns{display:flex;gap:5px;flex-wrap:wrap;}
+  .prog-type-btn{background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:.12s;}
+  .prog-type-btn.on{background:var(--accent);color:#0c0c0e;border-color:var(--accent);}
+  .prog-type-btn:active{transform:scale(.96);}
+  .prog-params{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  .prog-params label{display:flex;flex-direction:column;gap:3px;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+  .prog-params input{background:var(--surface);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:7px 8px;font-family:inherit;font-size:13px;width:64px;text-align:center;outline:none;}
+  .prog-params input:focus{border-color:var(--accent);}
+  .technique-hint{font-size:12px;color:var(--muted);font-style:italic;}
+
   /* Onboarding */
   .ob{animation:rise .4s ease both;}
   .ob-steps{display:flex;gap:7px;justify-content:center;margin:6px 0 22px;}
@@ -1353,10 +1370,45 @@ function renderToday(){
 function exDefHtmlUnit(unitId){
   const u=unitById(unitId); if(!u) return '';
   const ex=u.exercises||[];
-  const rows=ex.map(e=>`<div class="exrow">
-    <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
-    <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
-  </div>`).join('');
+  const rows=ex.map(e=>{
+    const prog=e.prog||{type:'off'};
+    const type=prog.type||'off';
+    const typeLabels={off:'Aus',double:'Doppel',strength:'Kraft',technique:'Reha'};
+    const typeBtns=['off','double','strength','technique'].map(t=>
+      `<button class="prog-type-btn${type===t?' on':''}" onclick="setExProg('${unitId}','${e.id}','${t}')">${typeLabels[t]}</button>`
+    ).join('');
+    // Parameter-Felder je nach Typ
+    let paramHtml='';
+    if(type==='double'){
+      const p={...PROG_DEFAULTS.double,...prog};
+      paramHtml=`<div class="prog-params">
+        <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
+        <label>Wdh min<input type="number" min="1" max="30" value="${p.repMin}" oninput="setExProgParam('${unitId}','${e.id}','repMin',this.value)"></label>
+        <label>Wdh max<input type="number" min="1" max="30" value="${p.repMax}" oninput="setExProgParam('${unitId}','${e.id}','repMax',this.value)"></label>
+        <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
+      </div>`;
+    } else if(type==='strength'){
+      const p={...PROG_DEFAULTS.strength,...prog};
+      paramHtml=`<div class="prog-params">
+        <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
+        <label>Ziel-Wdh<input type="number" min="1" max="30" value="${p.reps}" oninput="setExProgParam('${unitId}','${e.id}','reps',this.value)"></label>
+        <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
+      </div>`;
+    } else if(type==='technique'){
+      paramHtml=`<div class="prog-params technique-hint">Kein Gewichtsvorschlag \u2013 Fokus auf saubere Ausf\u00fchrung.</div>`;
+    }
+    return `<div class="exrow-wrap">
+      <div class="exrow">
+        <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
+        <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
+      </div>
+      <div class="prog-rule">
+        <span class="prog-label">Progression:</span>
+        <div class="prog-type-btns">${typeBtns}</div>
+      </div>
+      ${paramHtml}
+    </div>`;
+  }).join('');
   return `<div class="exdef">
     <div class="exlabel">\u00dcbungen f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
     ${rows}
@@ -1364,7 +1416,74 @@ function exDefHtmlUnit(unitId){
   </div>`;
 }
 
-/* ============ SESSION EXERCISES (Krafttraining) ============ */
+/* ============ PROGRESSIONSLOGIK ============ */
+/* Standard-Parameter pro Regeltyp */
+const PROG_DEFAULTS={
+  double:{sets:4, repMin:8, repMax:12, step:2.5},
+  strength:{sets:4, reps:12, step:2.5},
+  technique:{}
+};
+/* Letzten Session für eine Übung holen (nur Arbeitssätze, kein Aufwärmen) */
+function lastWorkingSetsFor(unitId,exId){
+  const last=lastSessionFor(unitId,exId);
+  if(!last) return null;
+  const workRows=last.rows.filter(r=>!r.warmup&&r.kg!=null);
+  return workRows.length?{date:last.date, rows:workRows}:null;
+}
+/* Progression berechnen: gibt {suggestion, hint} zurück oder null */
+function calcNextSession(exercise, unitId){
+  const prog=exercise&&exercise.prog;
+  if(!prog||prog.type==='off'||!prog.type) return null;
+  const last=lastWorkingSetsFor(unitId, exercise.id);
+  if(!last||!last.rows.length) return null;
+  const rows=last.rows;
+  if(prog.type==='technique'){
+    return {suggestion:'Gewicht halten \u00b7 saubere Ausf\u00fchrung', hint:'technique'};
+  }
+  if(prog.type==='double'){
+    const p={...PROG_DEFAULTS.double, ...prog};
+    const topKg=Math.max(...rows.map(r=>r.kg||0));
+    // Alle Sätze auf repMax? -> erhöhen
+    const allAtMax=rows.length>=p.sets && rows.every(r=>r.reps!=null&&r.reps>=p.repMax);
+    if(allAtMax){
+      const next=Math.round((topKg+p.step)*100)/100;
+      return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.repMin}\u00d7${p.sets}`,hint:'increase',nextKg:next};
+    } else {
+      const missing=rows.filter(r=>r.reps==null||r.reps<p.repMax).length;
+      return {suggestion:`${fmt(topKg)} kg halten \u00b7 Ziel ${p.repMax} Wdh in allen S\u00e4tzen`,hint:'hold',targetReps:p.repMax};
+    }
+  }
+  if(prog.type==='strength'){
+    const p={...PROG_DEFAULTS.strength, ...prog};
+    const topKg=Math.max(...rows.map(r=>r.kg||0));
+    const allAtTarget=rows.length>=p.sets && rows.every(r=>r.reps!=null&&r.reps>=p.reps);
+    if(allAtTarget){
+      const next=Math.round((topKg+p.step)*100)/100;
+      return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.reps} Wdh`,hint:'increase',nextKg:next};
+    } else {
+      return {suggestion:`${fmt(topKg)} kg halten \u00b7 Ziel ${p.reps} Wdh in allen S\u00e4tzen`,hint:'hold',targetReps:p.reps};
+    }
+  }
+  return null;
+}
+/* Progressionsregel setzen/ändern */
+function setExProg(unitId,exId,type){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  if(type==='off'){ delete ex.prog; }
+  else {
+    const def=PROG_DEFAULTS[type]||{};
+    ex.prog=Object.assign({type}, ex.prog&&ex.prog.type===type?ex.prog:{}, {type}, def);
+  }
+  save(); render();
+}
+function setExProgParam(unitId,exId,param,val){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex||!ex.prog) return;
+  const num=parseFloat(String(val).replace(',','.'));
+  if(!isNaN(num)&&num>0) ex.prog[param]=num;
+  save();
+}
 function sessionExercisesHtml(idx,unitId,sessionNote){
   const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
