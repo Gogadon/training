@@ -1451,20 +1451,22 @@ function calcNextSession(exercise, unitId){
   if(prog.type==='double'){
     const p={...PROG_DEFAULTS.double, ...prog};
     const topKg=Math.max(...rows.map(r=>r.kg||0));
-    // Alle Sätze auf repMax? -> erhöhen
-    const allAtMax=rows.length>=p.sets && rows.every(r=>r.reps!=null&&r.reps>=p.repMax);
+    const topRows=rows.filter(r=>r.kg===topKg);
+    // Nur Sätze beim höchsten Gewicht prüfen — gemischte Gewichte gelten nicht als "fertig"
+    const allAtMax=topRows.length>=p.sets && topRows.every(r=>r.reps!=null&&r.reps>=p.repMax);
     if(allAtMax){
       const next=Math.round((topKg+p.step)*100)/100;
       return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.repMin}\u00d7${p.sets}`,hint:'increase',nextKg:next};
     } else {
-      const missing=rows.filter(r=>r.reps==null||r.reps<p.repMax).length;
       return {suggestion:`${fmt(topKg)} kg halten \u00b7 Ziel ${p.repMax} Wdh in allen S\u00e4tzen`,hint:'hold',targetReps:p.repMax};
     }
   }
   if(prog.type==='strength'){
     const p={...PROG_DEFAULTS.strength, ...prog};
     const topKg=Math.max(...rows.map(r=>r.kg||0));
-    const allAtTarget=rows.length>=p.sets && rows.every(r=>r.reps!=null&&r.reps>=p.reps);
+    const topRows=rows.filter(r=>r.kg===topKg);
+    // Nur Sätze beim höchsten Gewicht prüfen
+    const allAtTarget=topRows.length>=p.sets && topRows.every(r=>r.reps!=null&&r.reps>=p.reps);
     if(allAtTarget){
       const next=Math.round((topKg+p.step)*100)/100;
       return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.reps} Wdh`,hint:'increase',nextKg:next};
