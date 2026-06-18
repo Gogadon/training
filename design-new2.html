@@ -550,6 +550,13 @@
   #ptr.spin .ptr-c{animation:ptrspin .7s linear infinite;}
   @keyframes ptrspin{to{transform:rotate(360deg);}}
 
+  /* Progressions-Vorschlag im Training */
+  .prog-suggest{font-size:13px;font-weight:600;border-radius:10px;padding:9px 12px;
+    margin-bottom:10px;line-height:1.4;}
+  .prog-suggest.hold{background:rgba(205,253,52,.08);color:var(--accent);border:1px solid rgba(205,253,52,.25);}
+  .prog-suggest.increase{background:rgba(205,253,52,.14);color:var(--accent);border:1px solid rgba(205,253,52,.4);}
+  .prog-suggest.technique{background:rgba(139,139,148,.1);color:var(--muted);border:1px solid var(--line);}
+
   /* Progressionsregel in Bibliothek */
   .exrow-wrap{margin-bottom:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:10px 12px;}
   .exrow-wrap .exrow{border:none;background:none;padding:0;margin-bottom:8px;}
@@ -1434,12 +1441,13 @@ function lastWorkingSetsFor(unitId,exId){
 function calcNextSession(exercise, unitId){
   const prog=exercise&&exercise.prog;
   if(!prog||prog.type==='off'||!prog.type) return null;
+  // Technik/Reha: immer anzeigen, keine letzte Session nötig
+  if(prog.type==='technique'){
+    return {suggestion:'Gewicht halten \u00b7 saubere Ausf\u00fchrung priorisieren', hint:'technique'};
+  }
   const last=lastWorkingSetsFor(unitId, exercise.id);
   if(!last||!last.rows.length) return null;
   const rows=last.rows;
-  if(prog.type==='technique'){
-    return {suggestion:'Gewicht halten \u00b7 saubere Ausf\u00fchrung', hint:'technique'};
-  }
   if(prog.type==='double'){
     const p={...PROG_DEFAULTS.double, ...prog};
     const topKg=Math.max(...rows.map(r=>r.kg||0));
@@ -1525,7 +1533,15 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
     </div>
     <div class="pr-badge" id="${prBadgeId(unitId,e.id,ri)}"${pr?'':' style="display:none"'}>${prTxt}</div>`;
     }).join('');
-    const body=`<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
+    // Vorschlag aus Progressionsregel
+    const progResult=calcNextSession(e, unitId);
+    let progHtml='';
+    if(progResult){
+      const icon=progResult.hint==='increase'?'💡':progResult.hint==='technique'?'🎯':'💡';
+      const cls=progResult.hint==='increase'?'prog-suggest increase':progResult.hint==='technique'?'prog-suggest technique':'prog-suggest hold';
+      progHtml=`<div class="${cls}">${icon} ${escapeHtml(progResult.suggestion)}</div>`;
+    }
+    const body=`${progHtml}<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
       <div class="warmhint">Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
