@@ -224,8 +224,20 @@
   .setadd{width:100%;background:transparent;border:1px dashed var(--line);color:var(--accent);
     padding:9px;border-radius:10px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px;}
   .setadd:active{background:var(--surface);}
-  .ex-last{font-size:10.5px;color:var(--muted);margin:8px 0 2px;}
+  .ex-last{font-size:10.5px;color:var(--muted);margin:8px 0 2px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;}
   .ex-last b{color:var(--accent);font-weight:600;}
+  .ex-last-line{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+  .ex-last-chev{flex-shrink:0;font-size:10px;color:var(--accent);font-weight:700;opacity:.8;}
+  .hist-box{margin:8px 0 2px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;overflow:hidden;animation:rise .25s ease both;}
+  .hist-head{display:flex;align-items:center;justify-content:space-between;padding:8px 11px;cursor:pointer;
+    font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);}
+  .hist-head .ex-last-chev{font-size:12px;}
+  .hist-row{display:flex;gap:10px;padding:7px 11px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.03);}
+  .hist-row:last-child{border-bottom:none;}
+  .hist-row.newest{background:rgba(205,253,52,.05);}
+  .hist-date{flex-shrink:0;color:var(--muted);min-width:42px;font-weight:600;}
+  .hist-sets{color:var(--text);font-weight:500;}
+  .hist-row.newest .hist-sets{color:var(--accent);}
   .ex-empty{font-size:12.5px;color:var(--muted);line-height:1.5;padding:6px 2px 2px;}
 
   /* exercises: define (edit mode) */
@@ -729,6 +741,7 @@ function defaultState(){
 
 let state=null, editing=false, openNoteIdx=-1, view='today', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
 let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
+let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
 let pickerFor=null, libOpenId=null;
 let needsOnboarding=false;
 let ob=null; // Onboarding-Zustand
@@ -896,6 +909,8 @@ function toggleWarmup(unitName,exId,rowIdx){
   entry.rows[rowIdx].warmup=!entry.rows[rowIdx].warmup;
   save(); render();
 }
+/* Übungs-Historie auf-/zuklappen */
+function toggleHist(key){ openHist[key]=!openHist[key]; render(); }
 /* Durchschnitts-kg einer Übung an einem Tag (für Chart) */
 function avgKg(entry){
   const e=normSets(entry);
@@ -915,6 +930,20 @@ function lastSessionFor(unitName,exId){
     }
   }
   return null;
+}
+/* Letzte N Sessions einer Übung (für aufklappbare Historie), neueste zuerst */
+function recentSessionsFor(unitName,exId,n){
+  const today=todayISO();
+  const dates=Object.keys(state.log).filter(d=>d<today).sort().reverse();
+  const out=[];
+  for(const d of dates){
+    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+    if(s&&s[exId]){
+      const e=normSets(s[exId]);
+      if(e.rows.some(r=>r.kg!=null)){ out.push({date:d, rows:e.rows}); if(out.length>=(n||4)) break; }
+    }
+  }
+  return out;
 }
 /* Übung heute abgehakt? (pro Session/Tag gespeichert) */
 function isExChecked(unitName,exId){
@@ -1515,9 +1544,33 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
     const last=lastSessionFor(unitId,e.id);
     let lastHtml='';
     if(last){
-      const d=isoToDate(last.date);
-      const summary=last.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
-      lastHtml=`<div class="ex-last">Zuletzt (${d.getDate()}.${d.getMonth()+1}.): <b>${escapeHtml(summary)}</b></div>`;
+      const histKey=unitId+'_'+e.id;
+      const histOpen=!!openHist[histKey];
+      const fmtSession=(sess)=>{
+        const dd=isoToDate(sess.date);
+        const sum=sess.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
+        return {dateStr:`${dd.getDate()}.${dd.getMonth()+1}.`, sum};
+      };
+      const lastF=fmtSession(last);
+      if(!histOpen){
+        lastHtml=`<div class="ex-last" onclick="toggleHist('${escapeAttr(histKey)}')">
+          <span class="ex-last-line">Zuletzt (${lastF.dateStr}): <b>${escapeHtml(lastF.sum)}</b></span>
+          <span class="ex-last-chev">Verlauf \u2304</span>
+        </div>`;
+      } else {
+        const recent=recentSessionsFor(unitId,e.id,4);
+        const rowsH=recent.map((s,i)=>{
+          const f=fmtSession(s);
+          return `<div class="hist-row${i===0?' newest':''}"><span class="hist-date">${f.dateStr}</span><span class="hist-sets">${escapeHtml(f.sum)}</span></div>`;
+        }).join('');
+        lastHtml=`<div class="hist-box">
+          <div class="hist-head" onclick="toggleHist('${escapeAttr(histKey)}')">
+            <span>Verlauf \u00b7 letzte ${recent.length} ${recent.length===1?'Einheit':'Einheiten'}</span>
+            <span class="ex-last-chev">\u2303</span>
+          </div>
+          ${rowsH}
+        </div>`;
+      }
     }
     let workNum=0;
     const setRows=rows.map((r,ri)=>{
