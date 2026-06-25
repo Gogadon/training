@@ -614,6 +614,18 @@
   .prog-params input:focus{border-color:var(--accent);}
   .technique-hint{font-size:12px;color:var(--muted);font-style:italic;}
 
+  .ex-note-btn{background:none;border:none;font-size:13px;cursor:pointer;padding:0 0 0 6px;opacity:.4;vertical-align:middle;line-height:1;}
+  .ex-note-btn.has-note{opacity:.85;}
+  .ex-note-btn:active{opacity:1;}
+  .ex-note-text{font-size:11.5px;color:var(--muted);margin-top:3px;cursor:pointer;font-style:italic;line-height:1.4;}
+  .ex-note-text:active{opacity:.7;}
+  .ex-note-editor{padding:10px 12px;border-top:1px solid var(--line);background:var(--surface);}
+  .ex-note-ta{width:100%;background:transparent;border:1px solid var(--line);border-radius:9px;
+    color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px;resize:none;min-height:60px;outline:none;box-sizing:border-box;}
+  .ex-note-ta:focus{border-color:var(--accent);}
+  .ex-note-done{margin-top:7px;background:var(--accent);color:#0c0c0e;border:none;border-radius:9px;
+    padding:8px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+
   /* Onboarding */
   .ob{animation:rise .4s ease both;}
   .ob-steps{display:flex;gap:7px;justify-content:center;margin:6px 0 22px;}
@@ -770,6 +782,7 @@ function defaultState(){
 let state=null, editing=false, openNoteIdx=-1, view='cockpit', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
 let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
 let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
+let openExNote={}; // aufgeklapptes Notiz-Feld pro Übung, keyed by unitId+exId
 let pickerFor=null, libOpenId=null;
 let needsOnboarding=false;
 let ob=null; // Onboarding-Zustand
@@ -860,7 +873,20 @@ function getExEntry(iso,unitId,exId){
   const s=getSessionSets(iso,unitId);
   const raw=s[exId];
   const n=normSets(raw);
-  if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+  // Erster Satz vorausfüllen, wenn heute noch nichts eingetragen (nur leerer Platzhalter)
+  const isEmpty=!n.rows.length||(n.rows.length===1&&n.rows[0].kg==null&&n.rows[0].reps==null);
+  if(isEmpty&&iso===todayISO()){
+    const last=lastSessionFor(unitId,exId);
+    if(last){
+      const firstWork=last.rows.find(r=>!r.warmup&&r.kg!=null);
+      if(firstWork) n.rows=[{kg:firstWork.kg, reps:firstWork.reps}];
+      else if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+    } else {
+      if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+    }
+  } else {
+    if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+  }
   n.checked=!!(raw&&raw.checked);
   return n;
 }
@@ -909,8 +935,26 @@ function updatePRBadge(unitId,exId,rowIdx,row){
   if(pr){ el.textContent='\ud83c\udf89 Neuer Rekord!'+(pr==='reps'?' (mehr Wdh)':''); el.style.display=''; }
   else { el.style.display='none'; }
 }
+/* Vorausgefüllter erster Satz aus der letzten Session (kg+Wdh, erster Arbeitssatz) */
+function prefillRowsFor(unitId,exId){
+  const last=lastSessionFor(unitId,exId);
+  if(!last) return null;
+  const firstWork=last.rows.find(r=>!r.warmup&&r.kg!=null);
+  if(!firstWork) return null;
+  return [{kg:firstWork.kg, reps:(firstWork.reps!=null?firstWork.reps:null)}];
+}
+/* Prüft, ob ein Eintrag noch komplett leer ist (nur Platzhalter) */
+function entryIsEmpty(entry){
+  return !entry.rows.length || (entry.rows.length===1 && entry.rows[0].kg==null && entry.rows[0].reps==null);
+}
 function saveSetRow(unitName,exId,rowIdx,field,val){
   const entry=ensureExEntry(unitName,exId);
+  // Wenn noch komplett leer: vorausgefüllten ersten Satz in echte Daten übernehmen,
+  // damit z.B. das Bearbeiten nur der Wdh nicht das vorausgefüllte Gewicht verliert
+  if(entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   while(entry.rows.length<=rowIdx) entry.rows.push({kg:null,reps:null});
   const num=val===''?null:parseFloat(val.replace(',','.'));
   entry.rows[rowIdx][field]=(num!=null&&!isNaN(num))?num:null;
@@ -936,6 +980,19 @@ function toggleWarmup(unitName,exId,rowIdx){
   if(!entry.rows[rowIdx]) return;
   entry.rows[rowIdx].warmup=!entry.rows[rowIdx].warmup;
   save(); render();
+}
+/* Übungs-Notiz auf-/zuklappen */
+function toggleExNote(unitId,exId){
+  const k=unitId+'_'+exId;
+  openExNote[k]=!openExNote[k];
+  render();
+}
+/* Übungs-Notiz speichern (permanent auf der Übung, nicht im Log) */
+function saveExNote(unitId,exId,v){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  ex.note=v.trim();
+  save();
 }
 /* Übungs-Historie auf-/zuklappen */
 function toggleHist(key){ openHist[key]=!openHist[key]; render(); }
@@ -994,6 +1051,11 @@ function exCountsOnDay(unitSets,exId){
 }
 function toggleExCheck(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
+  // Beim Abhaken: falls noch keine echten Werte da sind, vorausgefüllten ersten Satz übernehmen
+  if(!entry.checked && entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   entry.checked=!entry.checked;
   // beim Abhaken zuklappen, beim Aufheben aufklappen
   openExSet[unitName+'|'+exId]=entry.checked?false:true;
@@ -1554,7 +1616,7 @@ function renderToday(){
     sessionHtml=`<div class="sessionwrap">
       <div class="ses-head"><span>\ud83c\udfcb\ufe0f \u00dcbungen \u00b7 ${escapeHtml(short(todayUnit,22))}</span>
         <button class="ses-addbtn" onclick="gotoPlanUnitId('${todayUnitId_}')">+ \u00dcbung</button></div>
-      ${sessionExercisesHtml(idx,todayUnitId_,sessionNote)}
+      ${sessionExercisesHtml(idx,todayUnitId_)}
     </div>`;
   }
 
@@ -1729,17 +1791,13 @@ function setExProgParam(unitId,exId,param,val){
   if(!isNaN(num)&&num>0) ex.prog[param]=num;
   save();
 }
-function sessionExercisesHtml(idx,unitId,sessionNote){
+function sessionExercisesHtml(idx,unitId){
   const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
   const uName=(unitById(unitId)||{}).name||'';
   if(!ex.length){
     return `<div class="ex-empty">Noch keine \u00dcbungen f\u00fcr \u201e${escapeHtml(uName)}\u201c hinterlegt.<br>
-      Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>
-      <div class="cfield" style="margin-top:10px;">
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
-        <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute lief's super..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
-      </div>`;
+      Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>`;
   }
   const unitAttr=escapeAttr(unitId);
   const cards=ex.map(e=>{
@@ -1807,23 +1865,33 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
       <div class="warmhint">Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
       ${lastHtml}`;
+    const noteKey=unitId+'_'+e.id;
+    const noteOpen=!!openExNote[noteKey];
+    const exNote=e.note||'';
+    const noteDisplay=exNote&&!noteOpen
+      ?`<div class="ex-note-text">${escapeHtml(short(exNote,50))}</div>`
+      :'';
+    const noteEditor=noteOpen
+      ?`<div class="ex-note-editor" onclick="event.stopPropagation()">
+          <textarea class="ex-note-ta" placeholder="Notiz zu dieser \u00dcbung (z.B. Sitzhöhe 6, Rotatorenmanschette aufwärmen...)" oninput="saveExNote('${unitAttr}','${e.id}',this.value)">${escapeHtml(exNote)}</textarea>
+          <button class="ex-note-done" onclick="event.stopPropagation();toggleExNote('${unitAttr}','${e.id}')">Fertig</button>
+        </div>`
+      :'';
     return `<div class="ex-card${checked?' checked':''}">
       <div class="ex-head" onclick="toggleExOpen('${unitAttr}','${e.id}')">
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleExCheck('${unitAttr}','${e.id}')">\u2713</button>
         <div class="ex-headtxt">
-          <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}</div>
+          <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}${!checked&&!noteOpen?`<button class="ex-note-btn${exNote?' has-note':''}" onclick="event.stopPropagation();toggleExNote('${unitAttr}','${e.id}')" title="Notiz">\u270f\ufe0f</button>`:''}</div>
           ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitId,e.id))}</div>`:''}
+          ${noteDisplay}
         </div>
-        ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
+        ${!checked&&!noteOpen?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${noteEditor}
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
-  return `<div class="ex-list">${cards}</div>
-    <div class="cfield" style="margin-top:10px;">
-      <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
-      <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute lief's super / Schulter zwickt..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
-    </div>`;
+  return `<div class="ex-list">${cards}</div>`;
 }
 
 /* ============ CARDIO LOG ============ */
