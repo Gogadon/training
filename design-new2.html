@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Trainingszyklus Test</title>
+<title>Trainingszyklus</title>
 <meta name="theme-color" content="#0c0c0e">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2822,24 +2822,8 @@ function toggleDone(){
     const uid=todayUnitId();
     const u=unitById(uid);
     e.planId=p.id; e.unitId=uid; e.type=u?u.type:'other';
-    // Sätze vom letzten Mal vorausfüllen (nur wenn heute noch nichts erfasst)
-    if(u&&u.type!=='rest'){
-      const ex=u.exercises||[];
-      if(ex.length){
-        if(!e.sets) e.sets={};
-        if(!e.sets[uid]) e.sets[uid]={};
-        ex.forEach(x=>{
-          const already=e.sets[uid][x.id];
-          const hasData=already&&Array.isArray(already.rows)&&already.rows.some(r=>r.kg!=null);
-          if(!hasData){
-            const last=lastSessionFor(uid,x.id);
-            if(last&&last.rows.length){
-              e.sets[uid][x.id]={rows:last.rows.map(r=>({kg:r.kg!=null?r.kg:null, reps:r.reps!=null?r.reps:null}))};
-            }
-          }
-        });
-      }
-    }
+    // KEIN automatisches Vorausfüllen aller Übungen mehr!
+    // Nur tatsächlich abgehakte Übungen (mit echten Werten) bleiben erfasst.
   }
   save(); render();
 }
