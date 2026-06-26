@@ -874,7 +874,20 @@ function getExEntry(iso,unitId,exId){
   const s=getSessionSets(iso,unitId);
   const raw=s[exId];
   const n=normSets(raw);
-  if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+  // Erster Satz vorausfüllen, wenn heute noch nichts eingetragen (nur leerer Platzhalter)
+  const isEmpty=!n.rows.length||(n.rows.length===1&&n.rows[0].kg==null&&n.rows[0].reps==null);
+  if(isEmpty&&iso===todayISO()){
+    const last=lastSessionFor(unitId,exId);
+    if(last){
+      const firstWork=last.rows.find(r=>!r.warmup&&r.kg!=null);
+      if(firstWork) n.rows=[{kg:firstWork.kg, reps:firstWork.reps}];
+      else if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+    } else {
+      if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+    }
+  } else {
+    if(!n.rows.length) n.rows=[{kg:null,reps:null}];
+  }
   n.checked=!!(raw&&raw.checked);
   return n;
 }
@@ -923,8 +936,26 @@ function updatePRBadge(unitId,exId,rowIdx,row){
   if(pr){ el.textContent='\ud83c\udf89 Neuer Rekord!'+(pr==='reps'?' (mehr Wdh)':''); el.style.display=''; }
   else { el.style.display='none'; }
 }
+/* Vorausgefüllter erster Satz aus der letzten Session (kg+Wdh, erster Arbeitssatz) */
+function prefillRowsFor(unitId,exId){
+  const last=lastSessionFor(unitId,exId);
+  if(!last) return null;
+  const firstWork=last.rows.find(r=>!r.warmup&&r.kg!=null);
+  if(!firstWork) return null;
+  return [{kg:firstWork.kg, reps:(firstWork.reps!=null?firstWork.reps:null)}];
+}
+/* Prüft, ob ein Eintrag noch komplett leer ist (nur Platzhalter) */
+function entryIsEmpty(entry){
+  return !entry.rows.length || (entry.rows.length===1 && entry.rows[0].kg==null && entry.rows[0].reps==null);
+}
 function saveSetRow(unitName,exId,rowIdx,field,val){
   const entry=ensureExEntry(unitName,exId);
+  // Wenn noch komplett leer: vorausgefüllten ersten Satz in echte Daten übernehmen,
+  // damit z.B. das Bearbeiten nur der Wdh nicht das vorausgefüllte Gewicht verliert
+  if(entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   while(entry.rows.length<=rowIdx) entry.rows.push({kg:null,reps:null});
   const num=val===''?null:parseFloat(val.replace(',','.'));
   entry.rows[rowIdx][field]=(num!=null&&!isNaN(num))?num:null;
@@ -1021,6 +1052,11 @@ function exCountsOnDay(unitSets,exId){
 }
 function toggleExCheck(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
+  // Beim Abhaken: falls noch keine echten Werte da sind, vorausgefüllten ersten Satz übernehmen
+  if(!entry.checked && entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   entry.checked=!entry.checked;
   // beim Abhaken zuklappen, beim Aufheben aufklappen
   openExSet[unitName+'|'+exId]=entry.checked?false:true;
@@ -1628,7 +1664,7 @@ function renderToday(){
     sessionHtml=`<div class="sessionwrap">
       <div class="ses-head"><span>\ud83c\udfcb\ufe0f \u00dcbungen \u00b7 ${escapeHtml(short(todayUnit,22))}</span>
         <button class="ses-addbtn" onclick="gotoPlanUnitId('${todayUnitId_}')">+ \u00dcbung</button></div>
-      ${sessionExercisesHtml(idx,todayUnitId_,sessionNote)}
+      ${sessionExercisesHtml(idx,todayUnitId_)}
     </div>`;
   }
 
@@ -1803,17 +1839,13 @@ function setExProgParam(unitId,exId,param,val){
   if(!isNaN(num)&&num>0) ex.prog[param]=num;
   save();
 }
-function sessionExercisesHtml(idx,unitId,sessionNote){
+function sessionExercisesHtml(idx,unitId){
   const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
   const uName=(unitById(unitId)||{}).name||'';
   if(!ex.length){
     return `<div class="ex-empty">Noch keine \u00dcbungen f\u00fcr \u201e${escapeHtml(uName)}\u201c hinterlegt.<br>
-      Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>
-      <div class="cfield" style="margin-top:10px;">
-        <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
-        <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute lief's super..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
-      </div>`;
+      Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>`;
   }
   const unitAttr=escapeAttr(unitId);
   const cards=ex.map(e=>{
@@ -1907,11 +1939,7 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
-  return `<div class="ex-list">${cards}</div>
-    <div class="cfield" style="margin-top:10px;">
-      <label style="font-size:11px;color:var(--muted);letter-spacing:1px;">NOTIZ (optional)</label>
-      <textarea class="note-ta" style="margin-top:4px;" placeholder="z.B. Heute lief's super / Schulter zwickt..." oninput="updateSessionNote(this.value)">${escapeHtml(sessionNote)}</textarea>
-    </div>`;
+  return `<div class="ex-list">${cards}</div>`;
 }
 
 /* ============ CARDIO LOG ============ */
@@ -2842,24 +2870,8 @@ function toggleDone(){
     const uid=todayUnitId();
     const u=unitById(uid);
     e.planId=p.id; e.unitId=uid; e.type=u?u.type:'other';
-    // Sätze vom letzten Mal vorausfüllen (nur wenn heute noch nichts erfasst)
-    if(u&&u.type!=='rest'){
-      const ex=u.exercises||[];
-      if(ex.length){
-        if(!e.sets) e.sets={};
-        if(!e.sets[uid]) e.sets[uid]={};
-        ex.forEach(x=>{
-          const already=e.sets[uid][x.id];
-          const hasData=already&&Array.isArray(already.rows)&&already.rows.some(r=>r.kg!=null);
-          if(!hasData){
-            const last=lastSessionFor(uid,x.id);
-            if(last&&last.rows.length){
-              e.sets[uid][x.id]={rows:last.rows.map(r=>({kg:r.kg!=null?r.kg:null, reps:r.reps!=null?r.reps:null}))};
-            }
-          }
-        });
-      }
-    }
+    // KEIN automatisches Vorausfüllen aller Übungen mehr!
+    // Nur tatsächlich abgehakte Übungen (mit echten Werten) bleiben erfasst.
   }
   save(); render();
 }
