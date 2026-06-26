@@ -457,12 +457,12 @@
   .nav{position:absolute;left:0;right:0;bottom:0;z-index:50;display:flex;justify-content:center;
     padding:18px 14px calc(7px + min(env(safe-area-inset-bottom,0px),10px));
     background:linear-gradient(to top,var(--bg) 38%,rgba(12,12,14,.85) 62%,transparent);}
-  .navinner{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);
-    border-radius:18px;padding:6px;width:100%;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
+  .navinner{display:flex;gap:2px;background:var(--surface);border:1px solid var(--line);
+    border-radius:18px;padding:5px;width:100%;max-width:440px;box-shadow:0 8px 30px rgba(0,0,0,.4);}
   .navbtn{flex:1;background:transparent;border:none;color:var(--muted);cursor:pointer;
-    border-radius:13px;padding:9px 2px 7px;display:flex;flex-direction:column;align-items:center;gap:3px;
-    font-family:inherit;font-size:9.5px;font-weight:600;letter-spacing:.2px;transition:.15s;}
-  .navbtn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+    border-radius:12px;padding:8px 1px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;
+    font-family:inherit;font-size:8.5px;font-weight:600;letter-spacing:.1px;transition:.15s;}
+  .navbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
   .navbtn.active{background:var(--surface-2);color:var(--accent);}
   .navbtn:active{transform:scale(.94);}
 
@@ -562,6 +562,34 @@
   #ptr.spin .ptr-c{animation:ptrspin .7s linear infinite;}
   @keyframes ptrspin{to{transform:rotate(360deg);}}
 
+  /* Cockpit */
+  .ck-hero{background:linear-gradient(155deg,var(--surface-2),var(--surface));
+    border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;margin-bottom:14px;}
+  .ck-greet{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.5px;color:var(--text);margin-bottom:14px;}
+  .ck-next{margin-bottom:15px;}
+  .ck-next-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:3px;}
+  .ck-next-name{font-family:'Anton',sans-serif;font-size:26px;color:var(--accent);line-height:1.05;}
+  .ck-next-sub{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .ck-cta{width:100%;background:var(--accent);color:#0c0c0e;border:none;border-radius:13px;
+    padding:13px;font-family:'Sora',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:.12s;}
+  .ck-cta:active{transform:scale(.98);}
+  .ck-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .ck-tile{background:var(--surface-2);border:1px solid var(--line);border-radius:15px;padding:14px;}
+  .ck-tile-label{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:7px;line-height:1.3;}
+  .ck-tile-big{font-family:'Anton',sans-serif;font-size:30px;color:var(--text);line-height:1;}
+  .ck-tile-big.sm{font-size:26px;}
+  .ck-tile-of{font-family:'Sora',sans-serif;font-size:14px;color:var(--muted);font-weight:600;}
+  .ck-tile-sub{font-size:11.5px;color:var(--muted);margin-top:6px;font-weight:500;}
+  .ck-up{color:var(--accent);font-weight:700;}
+  .ck-down{color:var(--push);font-weight:700;}
+  .ck-flat{color:var(--muted);font-weight:600;}
+  .ck-neglect{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:11px 13px;
+    background:var(--surface);border:1px solid var(--line);border-radius:13px;}
+  .ck-neglect-ico{font-size:14px;flex-shrink:0;opacity:.8;line-height:1.3;}
+  .ck-neglect-txt{font-size:12px;color:var(--muted);line-height:1.45;}
+  .ck-neglect-txt b{color:var(--text);font-weight:600;}
+  .ck-neglect-more{opacity:.7;}
+
   /* Progressions-Vorschlag im Training */
   .prog-suggest{font-size:13px;font-weight:600;border-radius:10px;padding:9px 12px;
     margin-bottom:10px;line-height:1.4;}
@@ -585,6 +613,18 @@
     border-radius:8px;padding:7px 8px;font-family:inherit;font-size:13px;width:64px;text-align:center;outline:none;}
   .prog-params input:focus{border-color:var(--accent);}
   .technique-hint{font-size:12px;color:var(--muted);font-style:italic;}
+
+  .ex-note-btn{background:none;border:none;font-size:13px;cursor:pointer;padding:0 0 0 6px;opacity:.4;vertical-align:middle;line-height:1;}
+  .ex-note-btn.has-note{opacity:.85;}
+  .ex-note-btn:active{opacity:1;}
+  .ex-note-text{font-size:11.5px;color:var(--muted);margin-top:3px;cursor:pointer;font-style:italic;line-height:1.4;}
+  .ex-note-text:active{opacity:.7;}
+  .ex-note-editor{padding:10px 12px;border-top:1px solid var(--line);background:var(--surface);}
+  .ex-note-ta{width:100%;background:transparent;border:1px solid var(--line);border-radius:9px;
+    color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px;resize:none;min-height:60px;outline:none;box-sizing:border-box;}
+  .ex-note-ta:focus{border-color:var(--accent);}
+  .ex-note-done{margin-top:7px;background:var(--accent);color:#0c0c0e;border:none;border-radius:9px;
+    padding:8px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 
   /* Onboarding */
   .ob{animation:rise .4s ease both;}
@@ -740,9 +780,10 @@ function defaultState(){
   return {units, plans:[p], activePlanId:p.id, log, weight, inserts:{}};
 }
 
-let state=null, editing=false, openNoteIdx=-1, view='today', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
+let state=null, editing=false, openNoteIdx=-1, view='cockpit', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
 let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
 let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
+let openExNote={}; // aufgeklapptes Notiz-Feld pro Übung, keyed by unitId+exId
 let pickerFor=null, libOpenId=null;
 let needsOnboarding=false;
 let ob=null; // Onboarding-Zustand
@@ -909,6 +950,19 @@ function toggleWarmup(unitName,exId,rowIdx){
   if(!entry.rows[rowIdx]) return;
   entry.rows[rowIdx].warmup=!entry.rows[rowIdx].warmup;
   save(); render();
+}
+/* Übungs-Notiz auf-/zuklappen */
+function toggleExNote(unitId,exId){
+  const k=unitId+'_'+exId;
+  openExNote[k]=!openExNote[k];
+  render();
+}
+/* Übungs-Notiz speichern (permanent auf der Übung, nicht im Log) */
+function saveExNote(unitId,exId,v){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  ex.note=v.trim();
+  save();
 }
 /* Übungs-Historie auf-/zuklappen */
 function toggleHist(key){ openHist[key]=!openHist[key]; render(); }
@@ -1118,7 +1172,8 @@ function render(){
     return;
   }
   if(nav) nav.style.display='';
-  if(view==='today') app.innerHTML=renderToday();
+  if(view==='cockpit') app.innerHTML=renderCockpit();
+  else if(view==='today') app.innerHTML=renderToday();
   else if(view==='plan') app.innerHTML=renderPlan();
   else if(view==='history') app.innerHTML=renderHistory();
   else if(view==='body') app.innerHTML=renderBody();
@@ -1338,6 +1393,183 @@ function todayUnitId(){
   const p=activePlan();
   if(p.mode==='week'){ const wd=new Date().getDay(); return (p.week&&p.week[wd])||''; }
   const len=p.cycle.length; if(!len) return ''; return p.cycle[currentIndex()];
+}
+
+/* ============ COCKPIT VIEW ============ */
+/* Abgeschlossene Einheiten in der aktuellen Woche (Mo-So), ohne Restdays */
+function sessionsThisWeek(){
+  const mon=weekStartMonday(new Date());
+  const monIso=isoOf(mon);
+  let done=0;
+  Object.keys(state.log).forEach(d=>{
+    if(d<monIso) return;
+    const e=state.log[d];
+    if(e&&e.done&&e.type&&e.type!=='rest') done++;
+  });
+  return done;
+}
+/* Geplante Krafteinheiten pro Woche (grobe Schätzung aus Plan) */
+function plannedSessionsPerWeek(){
+  const p=activePlan();
+  if(p.mode==='week'){
+    return [1,2,3,4,5,6,0].filter(d=>{ const u=unitById(p.week&&p.week[d]); return u&&u.type!=='rest'; }).length;
+  }
+  // Zyklus: Anteil Nicht-Rest-Tage auf 7 Tage hochgerechnet
+  const nonRest=p.cycle.filter(id=>{ const u=unitById(id); return u&&u.type!=='rest'; }).length;
+  if(!p.cycle.length) return 0;
+  return Math.round(nonRest/p.cycle.length*7);
+}
+/* Gesamt-Wochenvolumen diese Woche + Trend ggü. Vorwoche */
+function weekVolumeTotal(){
+  const {data}=weeklyVolumeData();
+  let cur=0, prev=0;
+  Object.keys(data).forEach(id=>{ const a=data[id]; cur+=a[a.length-1]||0; prev+=a[a.length-2]||0; });
+  return {cur:Math.round(cur), prev:Math.round(prev)};
+}
+/* Gewichtstrend: neuester Eintrag vs. vorheriger */
+function weightTrend(){
+  const w=(state.weight||[]).slice().sort((a,b)=>a.date<b.date?-1:1);
+  if(!w.length) return null;
+  const latest=w[w.length-1];
+  const prev=w.length>1?w[w.length-2]:null;
+  return {kg:latest.kg, diff:prev?Math.round((latest.kg-prev.kg)*10)/10:null};
+}
+/* Letzten PR finden: jüngstes Datum, an dem eine Übung ein neues Höchstgewicht erreichte */
+function findLastPR(){
+  const dates=Object.keys(state.log).sort(); // alt -> neu
+  let result=null;
+  // pro Unit+Exercise das laufende Maximum verfolgen
+  const maxSoFar={};
+  dates.forEach(d=>{
+    const e=state.log[d]; if(!e||!e.sets) return;
+    Object.keys(e.sets).forEach(unitId=>{
+      const exObj=e.sets[unitId];
+      Object.keys(exObj).forEach(exId=>{
+        const rows=normSets(exObj[exId]).rows.filter(r=>!r.warmup&&r.kg!=null);
+        if(!rows.length) return;
+        const topKg=Math.max(...rows.map(r=>r.kg));
+        const key=unitId+'_'+exId;
+        if(maxSoFar[key]==null){ maxSoFar[key]=topKg; }
+        else if(topKg>maxSoFar[key]){
+          maxSoFar[key]=topKg;
+          const u=unitById(unitId);
+          const exName=u&&(u.exercises||[]).find(x=>x.id===exId);
+          result={date:d, exName:exName?exName.name:'\u00dcbung', kg:topKg};
+        }
+      });
+    });
+  });
+  return result;
+}
+
+/* Übungen, die im Plan sind, früher trainiert wurden, aber länger nicht mehr dran kamen */
+function findNeglectedExercises(thresholdDays){
+  const th=thresholdDays||28;
+  const now=isoToDate(todayISO());
+  const p=activePlan();
+  const ids=p.mode==='week'?Object.values(p.week||{}):p.cycle;
+  const seen=new Set(); const out=[];
+  ids.forEach(uid=>{
+    if(!uid||seen.has(uid)) return;
+    const u=unitById(uid); if(!u||u.type==='rest') return;
+    seen.add(uid);
+    (u.exercises||[]).forEach(ex=>{
+      const last=lastSessionFor(uid,ex.id);
+      if(!last) return; // noch nie trainiert -> kein "länger nicht"
+      const days=Math.floor((now-isoToDate(last.date))/86400000);
+      if(days>=th) out.push({name:ex.name, unit:u.name, days, weeks:Math.round(days/7)});
+    });
+  });
+  out.sort((a,b)=>b.days-a.days);
+  return out;
+}
+
+function renderCockpit(){
+  const now=new Date();
+  const greeting=now.getHours()<11?'Guten Morgen':now.getHours()<18?'Servus':'Guten Abend';
+  // Daten
+  const doneWk=sessionsThisWeek();
+  const planWk=plannedSessionsPerWeek();
+  const vol=weekVolumeTotal();
+  let volTrend='';
+  if(vol.prev>0){ const pct=Math.round((vol.cur-vol.prev)/vol.prev*100);
+    volTrend=pct>0?`<span class="ck-up">+${pct}% \u2191</span>`:pct<0?`<span class="ck-down">${pct}% \u2193</span>`:`<span class="ck-flat">\u00b10%</span>`;
+  } else if(vol.cur>0){ volTrend=`<span class="ck-flat">erste Woche</span>`; }
+  const wt=weightTrend();
+  const pr=findLastPR();
+  // nächste/heutige Einheit
+  const iso=todayISO();
+  const todayInsert=(state.inserts||{})[iso];
+  const tUid=todayUnitId();
+  const tU=unitById(tUid);
+  const todayDone=state.log[iso]&&state.log[iso].done;
+  let nextLabel, nextSub;
+  if(todayInsert){ nextLabel=todayInsert.label; nextSub='Sonder-Einheit heute'; }
+  else if(tU){
+    nextLabel=tU.name;
+    nextSub=todayDone?'heute \u2713 abgeschlossen':(tU.type==='rest'?'heute \u00b7 Active Rest':'heute dran');
+  } else { nextLabel='Frei'; nextSub='heute keine Einheit'; }
+
+  // Kacheln
+  const tiles=[];
+  // Einheiten diese Woche
+  tiles.push(`<div class="ck-tile">
+    <div class="ck-tile-label">Einheiten diese Woche</div>
+    <div class="ck-tile-big">${doneWk}${planWk?`<span class="ck-tile-of"> / ${planWk}</span>`:''}</div>
+    <div class="ck-tile-sub">${doneWk===0?'noch keine':doneWk>=planWk&&planWk>0?'Wochenziel erreicht! \ud83d\udd25':'weiter so'}</div>
+  </div>`);
+  // Wochenvolumen
+  tiles.push(`<div class="ck-tile">
+    <div class="ck-tile-label">Wochenvolumen</div>
+    <div class="ck-tile-big">${vol.cur>0?fmt(Math.round(vol.cur/100)/10)+'<span class="ck-tile-of"> t</span>':'\u2013'}</div>
+    <div class="ck-tile-sub">${volTrend||'noch keine Daten'}</div>
+  </div>`);
+  // Gewicht
+  if(wt){
+    let wd='';
+    if(wt.diff!=null) wd=wt.diff>0?`<span class="ck-up">+${fmt(wt.diff)} kg</span>`:wt.diff<0?`<span class="ck-down">${fmt(wt.diff)} kg</span>`:`<span class="ck-flat">stabil</span>`;
+    tiles.push(`<div class="ck-tile">
+      <div class="ck-tile-label">K\u00f6rpergewicht</div>
+      <div class="ck-tile-big">${fmt(wt.kg)}<span class="ck-tile-of"> kg</span></div>
+      <div class="ck-tile-sub">${wd||'erster Eintrag'}</div>
+    </div>`);
+  }
+  // Letzter PR
+  if(pr){
+    const d=isoToDate(pr.date);
+    tiles.push(`<div class="ck-tile">
+      <div class="ck-tile-label">Letzter Rekord \ud83c\udf89</div>
+      <div class="ck-tile-big sm">${fmt(pr.kg)}<span class="ck-tile-of"> kg</span></div>
+      <div class="ck-tile-sub">${escapeHtml(short(pr.exName,20))} \u00b7 ${d.getDate()}.${d.getMonth()+1}.</div>
+    </div>`);
+  }
+
+  // Länger nicht trainiert (dezenter Hinweis, kein Alarm)
+  const neglected=findNeglectedExercises(28);
+  let neglectHtml='';
+  if(neglected.length){
+    const shown=neglected.slice(0,3).map(n=>`<b>${escapeHtml(short(n.name,18))}</b> (${n.weeks} Wo.)`).join(', ');
+    const more=neglected.length>3?` <span class="ck-neglect-more">+${neglected.length-3} weitere</span>`:'';
+    neglectHtml=`<div class="ck-neglect">
+      <span class="ck-neglect-ico">\u23f3</span>
+      <span class="ck-neglect-txt">L\u00e4nger nicht trainiert: ${shown}${more}</span>
+    </div>`;
+  }
+
+  return `
+    ${header()}
+    <div class="ck-hero">
+      <div class="ck-greet">${greeting}!</div>
+      <div class="ck-next">
+        <div class="ck-next-label">${todayDone&&!todayInsert?'Heute erledigt':'Als N\u00e4chstes'}</div>
+        <div class="ck-next-name">${escapeHtml(nextLabel)}</div>
+        <div class="ck-next-sub">${nextSub}</div>
+      </div>
+      <button class="ck-cta" onclick="setView('today')">${todayDone?'Zum Training \u2192':'Training starten \u2192'}</button>
+    </div>
+    <div class="ck-tiles">${tiles.join('')}</div>
+    ${neglectHtml}
+  `;
 }
 
 /* ============ TODAY VIEW ============ */
@@ -1649,15 +1881,29 @@ function sessionExercisesHtml(idx,unitId,sessionNote){
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
       <div class="warmhint">Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
       ${lastHtml}`;
+    const noteKey=unitId+'_'+e.id;
+    const noteOpen=!!openExNote[noteKey];
+    const exNote=e.note||'';
+    const noteDisplay=exNote&&!noteOpen
+      ?`<div class="ex-note-text">${escapeHtml(short(exNote,50))}</div>`
+      :'';
+    const noteEditor=noteOpen
+      ?`<div class="ex-note-editor" onclick="event.stopPropagation()">
+          <textarea class="ex-note-ta" placeholder="Notiz zu dieser \u00dcbung (z.B. Sitzhöhe 6, Rotatorenmanschette aufwärmen...)" oninput="saveExNote('${unitAttr}','${e.id}',this.value)">${escapeHtml(exNote)}</textarea>
+          <button class="ex-note-done" onclick="event.stopPropagation();toggleExNote('${unitAttr}','${e.id}')">Fertig</button>
+        </div>`
+      :'';
     return `<div class="ex-card${checked?' checked':''}">
       <div class="ex-head" onclick="toggleExOpen('${unitAttr}','${e.id}')">
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleExCheck('${unitAttr}','${e.id}')">\u2713</button>
         <div class="ex-headtxt">
-          <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}</div>
+          <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}${!checked&&!noteOpen?`<button class="ex-note-btn${exNote?' has-note':''}" onclick="event.stopPropagation();toggleExNote('${unitAttr}','${e.id}')" title="Notiz">\u270f\ufe0f</button>`:''}</div>
           ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitId,e.id))}</div>`:''}
+          ${noteDisplay}
         </div>
-        ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
+        ${!checked&&!noteOpen?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${noteEditor}
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
@@ -2470,6 +2716,7 @@ function importBackup(input){
 function renderNav(){
   const nav=document.getElementById('nav');
   const items=[
+    {id:'cockpit', label:'Cockpit', svg:'<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'},
     {id:'today', label:'Heute', svg:'<path d="M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12"/>'},
     {id:'plan', label:'Plan', svg:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16M9 15l2 2 3-4"/>'},
     {id:'history', label:'Verlauf', svg:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>'},
