@@ -211,6 +211,9 @@
     border-radius:9px;padding:9px 8px;font-family:inherit;font-size:15px;outline:none;width:100%;text-align:center;}
   .setrow .ef input:focus{border-color:var(--accent);}
   .setrow .ex-x{font-size:12px;color:var(--muted);flex-shrink:0;}
+  .setrow .ex-slash{font-size:13px;color:var(--muted);flex-shrink:0;font-weight:600;}
+  .setrow .ef.uni{flex:0.85;}
+  .setrow .ef.uni input{text-align:center;}
   .setrow .setdel{background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;
     flex-shrink:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
   .setrow .setdel:active{color:var(--push);}
@@ -818,6 +821,29 @@ function getType(i){ const u=unitAt(i); return u?u.type:'other'; }
 function getTypeByUnitId(id){ const u=unitById(id); return u?u.type:'other'; }
 
 /* Gesamtvolumen einer Session (kg bewegt = Summe kg*reps NUR abgehakter Übungen) */
+/* === Einarmige Übungen: Helfer für L/R-Wiederholungen === */
+function isUniRow(r){ return !!(r&&(r.repsL!=null||r.repsR!=null)); }
+/* Volumen-Wdh: beide Arme summiert (kg×(L+R)) */
+function rowVolReps(r){
+  if(isUniRow(r)) return (r.repsL!=null?r.repsL:0)+(r.repsR!=null?r.repsR:0);
+  return r.reps!=null?r.reps:0;
+}
+/* Metrik-Wdh für PR/Fortschritt/Progression: schwächere Seite (limitiert) */
+function rowMetricReps(r){
+  if(isUniRow(r)){
+    const l=r.repsL, rr=r.repsR;
+    if(l==null&&rr==null) return null;
+    if(l==null) return rr;
+    if(rr==null) return l;
+    return Math.min(l,rr);
+  }
+  return r.reps;
+}
+/* Anzeige-Text der Wdh: einarmig "L/R", sonst Zahl */
+function fmtRowReps(r){
+  if(isUniRow(r)) return `${r.repsL!=null?r.repsL:'?'}/${r.repsR!=null?r.repsR:'?'}`;
+  return r.reps!=null?r.reps:'?';
+}
 function sessionVolume(iso,unitId){
   const sets=getSessionSets(iso,unitId);
   let total=0, setCount=0;
@@ -826,7 +852,8 @@ function sessionVolume(iso,unitId){
     if(!s||s.checked!==true) return; // nur explizit abgehakte zählen (kein Altdaten-Fallback)
     normSets(s).rows.forEach(r=>{
       if(r.warmup) return; // Aufwärmsätze zählen nicht ins Volumen
-      if(r.kg!=null&&r.reps!=null){ total+=r.kg*r.reps; setCount++; }
+      const vr=rowVolReps(r);
+      if(r.kg!=null&&vr>0){ total+=r.kg*vr; setCount++; }
     });
   });
   return {total:Math.round(total), setCount};
@@ -911,8 +938,9 @@ function bestBeforeToday(unitId,exId){
     if(s&&s[exId]){
       normSets(s[exId]).rows.forEach(r=>{
         if(r.warmup||r.kg==null) return;
-        if(maxKg==null||r.kg>maxKg){ maxKg=r.kg; repsAtMax=(r.reps!=null?r.reps:null); }
-        else if(r.kg===maxKg&&r.reps!=null&&(repsAtMax==null||r.reps>repsAtMax)){ repsAtMax=r.reps; }
+        const mr=rowMetricReps(r); // einarmig: schwächere Seite
+        if(maxKg==null||r.kg>maxKg){ maxKg=r.kg; repsAtMax=(mr!=null?mr:null); }
+        else if(r.kg===maxKg&&mr!=null&&(repsAtMax==null||mr>repsAtMax)){ repsAtMax=mr; }
       });
     }
   });
@@ -921,11 +949,12 @@ function bestBeforeToday(unitId,exId){
 /* Ist diese Zeile ein neuer Rekord? -> null | 'weight' | 'reps' */
 function rowPR(unitId,exId,row){
   if(!row||row.warmup) return null;
-  if(row.kg==null||row.reps==null) return null;
+  const mr=rowMetricReps(row);
+  if(row.kg==null||mr==null) return null;
   const {maxKg, repsAtMax}=bestBeforeToday(unitId,exId);
   if(maxKg==null) return null; // erste Session -> kein Vergleich
   if(row.kg>maxKg) return 'weight';
-  if(row.kg===maxKg&&repsAtMax!=null&&row.reps>repsAtMax) return 'reps';
+  if(row.kg===maxKg&&repsAtMax!=null&&mr>repsAtMax) return 'reps';
   return null;
 }
 function prBadgeId(unitId,exId,rowIdx){ return 'pr_'+unitId+'_'+exId+'_'+rowIdx; }
@@ -942,11 +971,17 @@ function prefillRowsFor(unitId,exId){
   if(!last) return null;
   const firstWork=last.rows.find(r=>!r.warmup&&r.kg!=null);
   if(!firstWork) return null;
+  if(isUniRow(firstWork)) return [{kg:firstWork.kg, repsL:(firstWork.repsL!=null?firstWork.repsL:null), repsR:(firstWork.repsR!=null?firstWork.repsR:null)}];
   return [{kg:firstWork.kg, reps:(firstWork.reps!=null?firstWork.reps:null)}];
 }
 /* Prüft, ob ein Eintrag noch komplett leer ist (nur Platzhalter) */
 function entryIsEmpty(entry){
-  return !entry.rows.length || (entry.rows.length===1 && entry.rows[0].kg==null && entry.rows[0].reps==null);
+  if(!entry.rows.length) return true;
+  if(entry.rows.length===1){
+    const r=entry.rows[0];
+    return r.kg==null && r.reps==null && r.repsL==null && r.repsR==null;
+  }
+  return false;
 }
 function saveSetRow(unitName,exId,rowIdx,field,val){
   const entry=ensureExEntry(unitName,exId);
@@ -966,9 +1001,20 @@ function saveSetRow(unitName,exId,rowIdx,field,val){
 function addSetRow(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
   // neuen Satz mit Werten des letzten Satzes vorbelegen (praktisch im Studio)
-  const last=entry.rows.length?entry.rows[entry.rows.length-1]:{kg:null,reps:null};
-  entry.rows.push({kg:last.kg!=null?last.kg:null, reps:last.reps!=null?last.reps:null});
+  const last=entry.rows.length?entry.rows[entry.rows.length-1]:{};
+  const u=unitForExId(exId);
+  const ex=u&&(u.exercises||[]).find(x=>x.id===exId);
+  if(ex&&ex.uni){
+    entry.rows.push({kg:last.kg!=null?last.kg:null, repsL:last.repsL!=null?last.repsL:null, repsR:last.repsR!=null?last.repsR:null});
+  } else {
+    entry.rows.push({kg:last.kg!=null?last.kg:null, reps:last.reps!=null?last.reps:null});
+  }
   save(); render();
+}
+/* Hilfsfunktion: zu welcher Unit gehört eine exId? */
+function unitForExId(exId){
+  const u=Object.values(state.units||{}).find(un=>(un.exercises||[]).some(x=>x.id===exId));
+  return u||null;
 }
 function delSetRow(unitName,exId,rowIdx){
   const entry=ensureExEntry(unitName,exId);
@@ -1759,6 +1805,10 @@ function exDefHtmlUnit(unitId){
         <div class="prog-type-btns">${typeBtns}</div>
       </div>
       ${paramHtml}
+      <div class="prog-rule" style="margin-top:6px;">
+        <span class="prog-label">Einarmig:</span>
+        <button class="prog-type-btn${e.uni?' on':''}" onclick="toggleExUni('${unitId}','${e.id}')">${e.uni?'An (L/R getrennt)':'Aus'}</button>
+      </div>
     </div>`;
   }).join('');
   return `<div class="exdef">
@@ -1798,7 +1848,7 @@ function calcNextSession(exercise, unitId){
     const topKg=Math.max(...rows.map(r=>r.kg||0));
     const topRows=rows.filter(r=>r.kg===topKg);
     // Nur Sätze beim höchsten Gewicht prüfen — gemischte Gewichte gelten nicht als "fertig"
-    const allAtMax=topRows.length>=p.sets && topRows.every(r=>r.reps!=null&&r.reps>=p.repMax);
+    const allAtMax=topRows.length>=p.sets && topRows.every(r=>{const mr=rowMetricReps(r);return mr!=null&&mr>=p.repMax;});
     if(allAtMax){
       const next=Math.round((topKg+p.step)*100)/100;
       return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.repMin}\u00d7${p.sets}`,hint:'increase',nextKg:next};
@@ -1811,7 +1861,7 @@ function calcNextSession(exercise, unitId){
     const topKg=Math.max(...rows.map(r=>r.kg||0));
     const topRows=rows.filter(r=>r.kg===topKg);
     // Nur Sätze beim höchsten Gewicht prüfen
-    const allAtTarget=topRows.length>=p.sets && topRows.every(r=>r.reps!=null&&r.reps>=p.reps);
+    const allAtTarget=topRows.length>=p.sets && topRows.every(r=>{const mr=rowMetricReps(r);return mr!=null&&mr>=p.reps;});
     if(allAtTarget){
       const next=Math.round((topKg+p.step)*100)/100;
       return {suggestion:`\u2197 Auf ${fmt(next)} kg steigern \u00b7 Ziel ${p.reps} Wdh`,hint:'increase',nextKg:next};
@@ -1839,6 +1889,13 @@ function setExProgParam(unitId,exId,param,val){
   if(!isNaN(num)&&num>0) ex.prog[param]=num;
   save();
 }
+/* Einarmig-Flag pro Übung umschalten */
+function toggleExUni(unitId,exId){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  if(ex.uni) delete ex.uni; else ex.uni=true;
+  save(); render();
+}
 function sessionExercisesHtml(idx,unitId){
   const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
@@ -1860,7 +1917,7 @@ function sessionExercisesHtml(idx,unitId){
       const histOpen=!!openHist[histKey];
       const fmtSession=(sess)=>{
         const dd=isoToDate(sess.date);
-        const sum=sess.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
+        const sum=sess.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`).join(', ');
         return {dateStr:`${dd.getDate()}.${dd.getMonth()+1}.`, sum};
       };
       const lastF=fmtSession(last);
@@ -1884,6 +1941,7 @@ function sessionExercisesHtml(idx,unitId){
         </div>`;
       }
     }
+    const uni=!!e.uni;
     let workNum=0;
     const setRows=rows.map((r,ri)=>{
       const warm=!!r.warmup;
@@ -1891,11 +1949,16 @@ function sessionExercisesHtml(idx,unitId){
       if(warm){ label='W'; } else { workNum++; label=workNum; }
       const pr=rowPR(unitId,e.id,r);
       const prTxt='\ud83c\udf89 Neuer Rekord!'+(pr==='reps'?' (mehr Wdh)':'');
+      const repsField=uni
+        ? `<div class="ef uni"><input type="number" inputmode="numeric" placeholder="L" value="${r.repsL!=null?r.repsL:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'repsL',this.value)"></div>
+           <span class="ex-slash">/</span>
+           <div class="ef uni"><input type="number" inputmode="numeric" placeholder="R" value="${r.repsR!=null?r.repsR:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'repsR',this.value)"></div>`
+        : `<div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>`;
       return `<div class="setrow${warm?' warm':''}">
       <button class="setnum tog${warm?' warm':''}" onclick="toggleWarmup('${unitAttr}','${e.id}',${ri})" title="Aufw\u00e4rmsatz umschalten">${label}</button>
       <div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>
       <span class="ex-x">\u00d7</span>
-      <div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>
+      ${repsField}
       <button class="setdel" onclick="delSetRow('${unitAttr}','${e.id}',${ri})">\u2715</button>
     </div>
     <div class="pr-badge" id="${prBadgeId(unitId,e.id,ri)}"${pr?'':' style="display:none"'}>${prTxt}</div>`;
@@ -1908,10 +1971,10 @@ function sessionExercisesHtml(idx,unitId){
       const cls=progResult.hint==='increase'?'prog-suggest increase':progResult.hint==='technique'?'prog-suggest technique':'prog-suggest hold';
       progHtml=`<div class="${cls}">${icon} ${escapeHtml(progResult.suggestion)}</div>`;
     }
-    const body=`${progHtml}<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">WDH</span><span class="sh-sp"></span></div>
+    const body=`${progHtml}<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">${uni?'WDH L / R':'WDH'}</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
-      <div class="warmhint">Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
+      <div class="warmhint">${uni?'Einarmig: Wdh f\u00fcr links / rechts getrennt \u00b7 ':''}Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
       ${lastHtml}`;
     const noteKey=unitId+'_'+e.id;
     const noteOpen=!!openExNote[noteKey];
@@ -2260,7 +2323,7 @@ function historyProgressHtml(){
         let kgCls='';
         if(prev){ if(s.kg>prev.kg) kgCls='inc'; else if(s.kg<prev.kg) kgCls='dec'; }
         const d=isoToDate(s.date);
-        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${r.reps!=null?r.reps:'?'}${r.warmup?' (W)':''}`).join(', ');
+        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`).join(', ');
         return `<div class="pp">
           <span class="ppd">${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(2)}</span>
           <span class="ppk ${kgCls}">${fmt(s.kg)} kg${kgCls==='inc'?' \u2191':kgCls==='dec'?' \u2193':''}</span>
