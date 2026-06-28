@@ -999,6 +999,12 @@ function saveSetRow(unitName,exId,rowIdx,field,val){
 }
 function addSetRow(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
+  // Wenn noch komplett leer: vorausgefüllten ersten Satz in echte Daten übernehmen,
+  // damit beim Hinzufügen eines zweiten Satzes der erste nicht leer wird
+  if(entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   // neuen Satz mit Werten des letzten Satzes vorbelegen (praktisch im Studio)
   const last=entry.rows.length?entry.rows[entry.rows.length-1]:{};
   const u=unitForExId(exId);
