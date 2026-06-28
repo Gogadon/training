@@ -214,13 +214,12 @@
   .setrow .ex-slash{font-size:13px;color:var(--muted);flex-shrink:0;font-weight:600;}
   .setrow .ef.uni{flex:0.85;}
   .setrow .ef.uni input{text-align:center;}
-  .setrow .ef.kg.assist{display:flex;align-items:center;gap:5px;}
-  .setrow .kg-sign{flex-shrink:0;width:30px;height:34px;border-radius:8px;border:1px solid var(--line);
-    background:var(--surface-2);font-family:'Anton',sans-serif;font-size:18px;cursor:pointer;padding:0;line-height:1;transition:.12s;}
+  .setrow .kg-sign{flex-shrink:0;width:32px;height:38px;border-radius:9px;border:1px solid var(--line);
+    background:var(--surface-2);font-family:'Anton',sans-serif;font-size:19px;cursor:pointer;padding:0;line-height:1;transition:.12s;
+    display:flex;align-items:center;justify-content:center;}
   .setrow .kg-sign.neg{background:rgba(205,253,52,.16);border-color:var(--accent);color:var(--accent);}
   .setrow .kg-sign.pos{background:rgba(255,106,61,.14);border-color:var(--push);color:var(--push);}
   .setrow .kg-sign:active{transform:scale(.92);}
-  .setrow .ef.kg.assist input{min-width:0;}
   .setrow .setdel{background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;
     flex-shrink:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
   .setrow .setdel:active{color:var(--push);}
@@ -1956,14 +1955,15 @@ function sessionExercisesHtml(idx,unitId){
            <div class="ef uni"><input type="number" inputmode="numeric" placeholder="R" value="${r.repsR!=null?r.repsR:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'repsR',this.value)"></div>`
         : `<div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>`;
       const neg=assistRowNeg(r);
+      const signBtn=assist
+        ? `<button class="kg-sign${neg?' neg':' pos'}" onclick="flipKgSign('${unitAttr}','${e.id}',${ri})" title="assistiert (\u2212) / Zusatzgewicht (+)">${neg?'\u2212':'+'}</button>`
+        : '';
       const kgField=assist
-        ? `<div class="ef kg assist">
-             <button class="kg-sign${neg?' neg':' pos'}" onclick="flipKgSign('${unitAttr}','${e.id}',${ri})" title="assistiert (\u2212) / Zusatzgewicht (+)">${neg?'\u2212':'+'}</button>
-             <input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?Math.abs(r.kg):''}" oninput="saveSetRowAbs('${unitAttr}','${e.id}',${ri},this.value)">
-           </div>`
+        ? `<div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?Math.abs(r.kg):''}" oninput="saveSetRowAbs('${unitAttr}','${e.id}',${ri},this.value)"></div>`
         : `<div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>`;
       return `<div class="setrow${warm?' warm':''}">
       <button class="setnum tog${warm?' warm':''}" onclick="toggleWarmup('${unitAttr}','${e.id}',${ri})" title="Aufw\u00e4rmsatz umschalten">${label}</button>
+      ${signBtn}
       ${kgField}
       <span class="ex-x">\u00d7</span>
       ${repsField}
