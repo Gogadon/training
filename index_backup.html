@@ -214,6 +214,12 @@
   .setrow .ex-slash{font-size:13px;color:var(--muted);flex-shrink:0;font-weight:600;}
   .setrow .ef.uni{flex:0.85;}
   .setrow .ef.uni input{text-align:center;}
+  .setrow .kg-sign{flex-shrink:0;width:32px;height:38px;border-radius:9px;border:1px solid var(--line);
+    background:var(--surface-2);font-family:'Anton',sans-serif;font-size:19px;cursor:pointer;padding:0;line-height:1;transition:.12s;
+    display:flex;align-items:center;justify-content:center;}
+  .setrow .kg-sign.neg{background:rgba(205,253,52,.16);border-color:var(--accent);color:var(--accent);}
+  .setrow .kg-sign.pos{background:rgba(255,106,61,.14);border-color:var(--push);color:var(--push);}
+  .setrow .kg-sign:active{transform:scale(.92);}
   .setrow .setdel{background:transparent;border:none;color:var(--muted);font-size:14px;cursor:pointer;
     flex-shrink:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;}
   .setrow .setdel:active{color:var(--push);}
@@ -853,7 +859,7 @@ function sessionVolume(iso,unitId){
     normSets(s).rows.forEach(r=>{
       if(r.warmup) return; // Aufwärmsätze zählen nicht ins Volumen
       const vr=rowVolReps(r);
-      if(r.kg!=null&&vr>0){ total+=r.kg*vr; setCount++; }
+      if(r.kg!=null&&vr>0){ total+=(r.kg>0?r.kg:0)*vr; setCount++; } // assistierte (negative) kg tragen 0 bei
     });
   });
   return {total:Math.round(total), setCount};
@@ -1000,6 +1006,12 @@ function saveSetRow(unitName,exId,rowIdx,field,val){
 }
 function addSetRow(unitName,exId){
   const entry=ensureExEntry(unitName,exId);
+  // Wenn noch komplett leer: vorausgefüllten ersten Satz in echte Daten übernehmen,
+  // damit beim Hinzufügen eines zweiten Satzes der erste nicht leer wird
+  if(entryIsEmpty(entry)){
+    const pf=prefillRowsFor(unitName,exId);
+    if(pf) entry.rows=pf;
+  }
   // neuen Satz mit Werten des letzten Satzes vorbelegen (praktisch im Studio)
   const last=entry.rows.length?entry.rows[entry.rows.length-1]:{};
   const u=unitForExId(exId);
@@ -1176,7 +1188,6 @@ async function storageSet(key,value){
   mem[key]=value;
 }
 
-/* Migriert altes namensbasiertes Format -> neues ID-basiertes Modell */
 function migrateOldFormat(old){
   const units={}; const nameToId={};
   (old.plans||[]).forEach(p=>{
@@ -1808,6 +1819,8 @@ function exDefHtmlUnit(unitId){
       <div class="prog-rule" style="margin-top:6px;">
         <span class="prog-label">Einarmig:</span>
         <button class="prog-type-btn${e.uni?' on':''}" onclick="toggleExUni('${unitId}','${e.id}')">${e.uni?'An (L/R getrennt)':'Aus'}</button>
+        <span class="prog-label" style="margin-left:8px;">Assistiert:</span>
+        <button class="prog-type-btn${e.assist?' on':''}" onclick="toggleExAssist('${unitId}','${e.id}')">${e.assist?'An (\u2212/+ )':'Aus'}</button>
       </div>
     </div>`;
   }).join('');
@@ -1896,6 +1909,39 @@ function toggleExUni(unitId,exId){
   if(ex.uni) delete ex.uni; else ex.uni=true;
   save(); render();
 }
+/* Assistiert-Flag pro Übung umschalten (Gewicht hilft -> negativ) */
+function toggleExAssist(unitId,exId){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  if(ex.assist) delete ex.assist; else ex.assist=true;
+  save(); render();
+}
+/* Soll der kg-Wert dieser Zeile negativ (assistiert) sein? */
+function assistRowNeg(r){ return r.kg!=null ? r.kg<0 : (r.neg!==false); }
+/* Vorzeichen einer kg-Eingabe umschalten (assistiert <-> Zusatzgewicht) */
+function flipKgSign(unitName,exId,rowIdx){
+  const entry=ensureExEntry(unitName,exId);
+  if(entryIsEmpty(entry)){ const pf=prefillRowsFor(unitName,exId); if(pf) entry.rows=pf; }
+  while(entry.rows.length<=rowIdx) entry.rows.push({kg:null,reps:null});
+  const r=entry.rows[rowIdx];
+  if(r.kg!=null){ r.kg=-r.kg; r.neg=r.kg<0; }
+  else { r.neg=!(r.neg!==false); } // noch kein Wert: nur Vorzeichen-Präferenz umschalten
+  save(); render();
+}
+/* kg-Eingabe als Betrag speichern, Vorzeichen aus Präferenz/aktuellem Wert */
+function saveSetRowAbs(unitName,exId,rowIdx,val){
+  const entry=ensureExEntry(unitName,exId);
+  if(entryIsEmpty(entry)){ const pf=prefillRowsFor(unitName,exId); if(pf) entry.rows=pf; }
+  while(entry.rows.length<=rowIdx) entry.rows.push({kg:null,reps:null});
+  const r=entry.rows[rowIdx];
+  const neg=assistRowNeg(r);
+  const raw=val===''?null:parseFloat(val.replace(',','.'));
+  const mag=(raw!=null&&!isNaN(raw))?Math.abs(raw):null;
+  r.kg=(mag!=null)?(neg?-mag:mag):null;
+  r.neg=neg;
+  save();
+  updatePRBadge(unitName,exId,rowIdx,r);
+}
 function sessionExercisesHtml(idx,unitId){
   const ex=getExercisesByUnitId(unitId);
   const iso=todayISO();
@@ -1942,6 +1988,7 @@ function sessionExercisesHtml(idx,unitId){
       }
     }
     const uni=!!e.uni;
+    const assist=!!e.assist;
     let workNum=0;
     const setRows=rows.map((r,ri)=>{
       const warm=!!r.warmup;
@@ -1954,9 +2001,17 @@ function sessionExercisesHtml(idx,unitId){
            <span class="ex-slash">/</span>
            <div class="ef uni"><input type="number" inputmode="numeric" placeholder="R" value="${r.repsR!=null?r.repsR:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'repsR',this.value)"></div>`
         : `<div class="ef"><input type="number" inputmode="numeric" placeholder="Wdh" value="${r.reps!=null?r.reps:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'reps',this.value)"></div>`;
+      const neg=assistRowNeg(r);
+      const signBtn=assist
+        ? `<button class="kg-sign${neg?' neg':' pos'}" onclick="flipKgSign('${unitAttr}','${e.id}',${ri})" title="assistiert (\u2212) / Zusatzgewicht (+)">${neg?'\u2212':'+'}</button>`
+        : '';
+      const kgField=assist
+        ? `<div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?Math.abs(r.kg):''}" oninput="saveSetRowAbs('${unitAttr}','${e.id}',${ri},this.value)"></div>`
+        : `<div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>`;
       return `<div class="setrow${warm?' warm':''}">
       <button class="setnum tog${warm?' warm':''}" onclick="toggleWarmup('${unitAttr}','${e.id}',${ri})" title="Aufw\u00e4rmsatz umschalten">${label}</button>
-      <div class="ef kg"><input type="number" inputmode="decimal" step="0.5" placeholder="kg" value="${r.kg!=null?r.kg:''}" oninput="saveSetRow('${unitAttr}','${e.id}',${ri},'kg',this.value)"></div>
+      ${signBtn}
+      ${kgField}
       <span class="ex-x">\u00d7</span>
       ${repsField}
       <button class="setdel" onclick="delSetRow('${unitAttr}','${e.id}',${ri})">\u2715</button>
@@ -1974,7 +2029,7 @@ function sessionExercisesHtml(idx,unitId){
     const body=`${progHtml}<div class="setrow-head"><span class="setnum">#</span><span class="sh-kg">GEWICHT</span><span class="sh-x"></span><span class="sh-reps">${uni?'WDH L / R':'WDH'}</span><span class="sh-sp"></span></div>
       <div class="setlist">${setRows}</div>
       <button class="setadd" onclick="addSetRow('${unitAttr}','${e.id}')">+ Satz hinzuf\u00fcgen</button>
-      <div class="warmhint">${uni?'Einarmig: Wdh f\u00fcr links / rechts getrennt \u00b7 ':''}Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
+      <div class="warmhint">${assist?'Assistiert: <b>\u2212</b> = Hilfe (weniger ist besser) \u00b7 <b>+</b> = Zusatzgewicht \u00b7 ':''}${uni?'Einarmig: Wdh f\u00fcr links / rechts getrennt \u00b7 ':''}Tipp: Satz-Nummer antippen \u2192 <b>W</b> = Aufw\u00e4rmsatz (z\u00e4hlt nicht ins Volumen)</div>
       ${lastHtml}`;
     const noteKey=unitId+'_'+e.id;
     const noteOpen=!!openExNote[noteKey];
@@ -3010,4 +3065,4 @@ function short(s,n){ n=n||16; return s.length>n?s.slice(0,n-1)+'\u2026':s; }
 })();
 </script>
 </body>
-  </html>
+</html>
