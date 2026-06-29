@@ -298,7 +298,11 @@
   .progcard .pp .ppd{color:var(--muted);min-width:54px;}
   .progcard .pp .ppk{font-weight:600;min-width:60px;}
   .progcard .pp .ppk.inc{color:var(--accent);}.progcard .pp .ppk.dec{color:var(--push);}
-  .progcard .pp .ppn{color:var(--muted);flex:1;}
+  .progcard .pp .ppn{color:var(--muted);flex:1;word-break:break-word;line-height:1.45;}
+  .progcard .pp-more{margin-top:9px;width:100%;background:transparent;border:1px solid var(--line);
+    border-radius:9px;color:var(--accent);font-family:inherit;font-size:12px;font-weight:600;
+    padding:8px;cursor:pointer;transition:.12s;}
+  .progcard .pp-more:active{background:rgba(205,253,52,.08);}
   .prog-empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 14px;line-height:1.6;}
 
   .day-wrap{display:flex;flex-direction:column;animation:rise .4s ease both;}
@@ -833,6 +837,7 @@ function defaultState(){
 
 let state=null, editing=false, openNoteIdx=-1, view='cockpit', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
 let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
+let openProgPoints={}; // pro Übung: ganze Satz-Historie ausgeklappt? (key unitId|exId)
 let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
 let openExNote={}; // aufgeklapptes Notiz-Feld pro Übung, keyed by unitId+exId
 let wrappedOpen=false, wrappedCard=0, wrappedData=null; // Jahresrückblick "Gym Wrapped"
@@ -2593,26 +2598,45 @@ function historyProgressHtml(){
       if(series.length>1&&diff>0){ trendCls='up'; trendTxt=`+${fmt(diff)} kg seit Start \ud83d\udcc8`; }
       else if(series.length>1&&diff<0){ trendCls='down'; trendTxt=`${fmt(diff)} kg seit Start`; }
       else if(series.length===1){ trendCls='flat'; trendTxt='erster Eintrag'; }
-      const pts=series.slice(-8).reverse();
-      const ppHtml=pts.map((s,k)=>{
-        const realIdx=series.length-1-k;
+      const total=series.length;
+      const ptsKey=u.id+'|'+e.id;
+      const expanded=!!openProgPoints[ptsKey];
+      const LIMIT=5;
+      const showCount=expanded?total:Math.min(LIMIT,total);
+      // Sätze sauber darstellen: nur ganze Sätze, nie mitten im Wert abgeschnitten
+      function fmtSets(rows){
+        const all=rows.filter(r=>r.kg!=null);
+        const maxShow=4;
+        const shown=all.slice(0,maxShow).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`);
+        let txt=shown.join(', ');
+        if(all.length>maxShow) txt+=` +${all.length-maxShow}`;
+        return txt;
+      }
+      let ppHtml='';
+      for(let k=0;k<showCount;k++){
+        const realIdx=total-1-k; // neueste zuerst
+        const s=series[realIdx];
         const prev=realIdx>0?series[realIdx-1]:null;
         let kgCls='';
         if(prev){ if(s.kg>prev.kg) kgCls='inc'; else if(s.kg<prev.kg) kgCls='dec'; }
         const d=isoToDate(s.date);
-        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`).join(', ');
-        return `<div class="pp">
+        const setsTxt=fmtSets(s.rows);
+        ppHtml+=`<div class="pp">
           <span class="ppd">${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(2)}</span>
           <span class="ppk ${kgCls}">${fmt(s.kg)} kg${kgCls==='inc'?' \u2191':kgCls==='dec'?' \u2193':''}</span>
-          <span class="ppn">${escapeHtml(short(setsTxt,24))}${s.note?' \u00b7 '+escapeHtml(short(s.note.replace(/\n/g,' '),22)):''}</span>
+          <span class="ppn">${escapeHtml(setsTxt)}${s.note?' \u00b7 '+escapeHtml(short(s.note.replace(/\n/g,' '),22)):''}</span>
         </div>`;
-      }).join('');
+      }
+      const moreBtn=total>LIMIT
+        ? `<button class="pp-more" onclick="toggleProgPoints('${escapeAttr(ptsKey)}')">${expanded?'Weniger anzeigen \u2303':'Alle '+total+' anzeigen \u2304'}</button>`
+        : '';
       return `<div class="progcard">
         <div class="pc-head"><div class="pc-name">${escapeHtml(e.name||'(unbenannt)')}</div>
           <div class="pc-now">${fmt(latest.kg)}<small> kg</small></div></div>
         <div class="pc-trend ${trendCls}">${trendTxt}</div>
         ${buildExerciseChart(series)}
         <div class="pc-points">${ppHtml}</div>
+        ${moreBtn}
       </div>`;
     }).filter(Boolean).join('');
     if(!cards) return '';
@@ -3136,6 +3160,7 @@ function togglePlanNameEdit(){ planNameEdit=!planNameEdit; render(); }
 function setHistSub(s){ histSub=s; if(s==='progress') openProgUnits=null; render(); scrollAppTop(); }
 function setProgMetric(m){ progMetric=m; render(); }
 function toggleProgUnit(id){ if(!openProgUnits) openProgUnits={}; openProgUnits[id]=!openProgUnits[id]; render(); }
+function toggleProgPoints(key){ openProgPoints[key]=!openProgPoints[key]; render(); }
 function setRange(r){ weightRange=r; render(); }
 function setWeightDate(v){ weightDate=v||todayISO(); render(); }
 function editWeightEntry(date){ weightDate=date; render(); scrollAppTop(); }
