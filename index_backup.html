@@ -298,7 +298,11 @@
   .progcard .pp .ppd{color:var(--muted);min-width:54px;}
   .progcard .pp .ppk{font-weight:600;min-width:60px;}
   .progcard .pp .ppk.inc{color:var(--accent);}.progcard .pp .ppk.dec{color:var(--push);}
-  .progcard .pp .ppn{color:var(--muted);flex:1;}
+  .progcard .pp .ppn{color:var(--muted);flex:1;word-break:break-word;line-height:1.45;}
+  .progcard .pp-more{margin-top:9px;width:100%;background:transparent;border:1px solid var(--line);
+    border-radius:9px;color:var(--accent);font-family:inherit;font-size:12px;font-weight:600;
+    padding:8px;cursor:pointer;transition:.12s;}
+  .progcard .pp-more:active{background:rgba(205,253,52,.08);}
   .prog-empty{text-align:center;color:var(--muted);font-size:13px;padding:30px 14px;line-height:1.6;}
 
   .day-wrap{display:flex;flex-direction:column;animation:rise .4s ease both;}
@@ -635,6 +639,49 @@
   .ex-note-done{margin-top:7px;background:var(--accent);color:#0c0c0e;border:none;border-radius:9px;
     padding:8px 18px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 
+  /* Gym Wrapped - Cockpit & Verlauf Buttons */
+  .ck-wrapped{display:flex;align-items:center;gap:12px;width:100%;margin-top:14px;padding:16px 16px;
+    border:none;border-radius:var(--radius);cursor:pointer;text-align:left;
+    background:linear-gradient(110deg,#1a1d10,#231a2b 55%,#2a1420);
+    box-shadow:0 0 0 1px rgba(205,253,52,.25), inset 0 0 30px rgba(205,253,52,.05);}
+  .ck-wrapped:active{transform:scale(.99);}
+  .ck-wrapped-ico{font-size:26px;flex-shrink:0;}
+  .ck-wrapped-txt{flex:1;color:var(--text);font-size:15px;line-height:1.35;}
+  .ck-wrapped-sub{color:var(--muted);font-size:12px;font-weight:400;}
+  .ck-wrapped-arr{color:var(--accent);font-size:20px;font-weight:700;flex-shrink:0;}
+  .hist-wrapped{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+    margin:4px 0 14px;padding:13px 16px;border:none;border-radius:14px;cursor:pointer;
+    background:linear-gradient(110deg,#1a1d10,#231a2b 60%,#2a1420);color:var(--text);
+    font-family:inherit;font-size:14px;font-weight:700;
+    box-shadow:0 0 0 1px rgba(205,253,52,.25);}
+  .hist-wrapped:active{transform:scale(.99);}
+  .hist-wrapped-arr{color:var(--accent);font-size:18px;}
+
+  /* Gym Wrapped - Story Overlay */
+  .wr-overlay{position:fixed;inset:0;z-index:1000;cursor:pointer;
+    background:radial-gradient(130% 100% at 50% 0%,#241a2e 0%,#15161c 55%,#0c0c0e 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 26px;overflow:hidden;}
+  .wr-segs{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:5px;z-index:3;}
+  .wr-seg{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.18);overflow:hidden;}
+  .wr-seg.done{background:var(--accent);}
+  .wr-seg.active{background:var(--accent);box-shadow:0 0 8px rgba(205,253,52,.6);}
+  .wr-x{position:absolute;top:26px;right:18px;z-index:4;background:rgba(255,255,255,.1);border:none;
+    color:#fff;width:34px;height:34px;border-radius:50%;font-size:16px;cursor:pointer;line-height:1;}
+  .wr-tapzone{position:absolute;top:0;bottom:0;width:35%;z-index:2;}
+  .wr-tapzone.left{left:0;}
+  .wr-tapzone.right{right:0;width:65%;}
+  .wr-card{position:relative;z-index:1;text-align:center;max-width:440px;animation:wrIn .4s ease;pointer-events:none;}
+  @keyframes wrIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  .wr-kicker{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:18px;}
+  .wr-bignum{font-family:'Anton',sans-serif;font-size:96px;line-height:.95;color:#fff;letter-spacing:-1px;}
+  .wr-bignum .wr-unit{font-size:34px;color:var(--accent);margin-left:6px;}
+  .wr-bigtext{font-family:'Anton',sans-serif;font-size:48px;line-height:1.02;color:#fff;margin:4px 0;}
+  .wr-sub{font-size:16px;color:#cfcfd4;line-height:1.5;margin-top:22px;}
+  .wr-hl{color:var(--accent);}
+  .wr-hint{position:absolute;bottom:24px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,.4);z-index:1;}
+  .wr-close-btn{margin-top:30px;background:var(--accent);color:#0c0c0e;border:none;border-radius:12px;
+    padding:14px 40px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;pointer-events:auto;position:relative;z-index:5;}
+
   /* Onboarding */
   .ob{animation:rise .4s ease both;}
   .ob-steps{display:flex;gap:7px;justify-content:center;margin:6px 0 22px;}
@@ -791,8 +838,10 @@ function defaultState(){
 
 let state=null, editing=false, openNoteIdx=-1, view='cockpit', weightRange='1M', weightDate=null, histSub='activity', progMetric='top';
 let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planNameEdit=false;
+let openProgPoints={}; // pro Übung: ganze Satz-Historie ausgeklappt? (key unitId|exId)
 let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
 let openExNote={}; // aufgeklapptes Notiz-Feld pro Übung, keyed by unitId+exId
+let wrappedOpen=false, wrappedCard=0, wrappedData=null; // Jahresrückblick "Gym Wrapped"
 let pickerFor=null, libOpenId=null;
 let needsOnboarding=false;
 let ob=null; // Onboarding-Zustand
@@ -1265,6 +1314,11 @@ function render(){
     return;
   }
   if(nav) nav.style.display='';
+  if(wrappedOpen){
+    app.innerHTML=renderWrapped();
+    if(nav) nav.style.display='none';
+    return;
+  }
   if(view==='cockpit') app.innerHTML=renderCockpit();
   else if(view==='today') app.innerHTML=renderToday();
   else if(view==='plan') app.innerHTML=renderPlan();
@@ -1577,6 +1631,213 @@ function findNeglectedExercises(thresholdDays){
   return out;
 }
 
+/* ============ JAHRESRÜCKBLICK "GYM WRAPPED" ============ */
+function yearWrapped(year){
+  const y=year||new Date().getFullYear();
+  const prefix=String(y)+'-';
+  const dates=Object.keys(state.log).filter(d=>d.startsWith(prefix)).sort();
+  // Trainingstage (echte Einheiten, kein rest)
+  let totalSessions=0, totalVolume=0;
+  const exCount={};        // exId -> Anzahl Sessions
+  const exName={};         // exId -> Name
+  const exFirstLast={};    // exId -> {firstKg, lastKg, firstDate, lastDate}
+  const monthSessions={};  // 1-12 -> Anzahl
+  const monthVolume={};    // 1-12 -> Volumen
+  let prCount=0;
+  const maxSoFar={};       // für PR-Zählung übers Jahr
+  const allTimeMax={};     // Bestwert VOR dem Jahr (für PR-Vergleich)
+  // Bestwerte vor dem Jahr ermitteln
+  Object.keys(state.log).filter(d=>d<prefix).forEach(d=>{
+    const e=state.log[d]; if(!e||!e.sets) return;
+    Object.keys(e.sets).forEach(uid=>{
+      Object.keys(e.sets[uid]).forEach(exId=>{
+        normSets(e.sets[uid][exId]).rows.forEach(r=>{
+          if(r.warmup||r.kg==null) return;
+          const key=uid+'_'+exId;
+          if(allTimeMax[key]==null||r.kg>allTimeMax[key]) allTimeMax[key]=r.kg;
+        });
+      });
+    });
+  });
+  Object.assign(maxSoFar, allTimeMax);
+
+  dates.forEach(d=>{
+    const e=state.log[d]; if(!e) return;
+    const mon=parseInt(d.slice(5,7),10);
+    if(e.done && e.type && e.type!=='rest'){ totalSessions++; monthSessions[mon]=(monthSessions[mon]||0)+1; }
+    if(!e.sets) return;
+    Object.keys(e.sets).forEach(uid=>{
+      // Volumen dieser Einheit an dem Tag
+      const vol=sessionVolume(d,uid).total;
+      totalVolume+=vol; monthVolume[mon]=(monthVolume[mon]||0)+vol;
+      Object.keys(e.sets[uid]).forEach(exId=>{
+        const entry=e.sets[uid][exId];
+        if(entry.checked!==true) return;
+        const rows=normSets(entry).rows.filter(r=>!r.warmup&&r.kg!=null);
+        if(!rows.length) return;
+        const key=uid+'_'+exId;
+        exCount[key]=(exCount[key]||0)+1;
+        const u=unitById(uid);
+        const exObj=u&&(u.exercises||[]).find(x=>x.id===exId);
+        exName[key]=exObj?exObj.name:'Übung';
+        const topKg=Math.max(...rows.map(r=>r.kg));
+        // Kraftzuwachs: ersten und letzten Top-Wert des Jahres festhalten
+        if(!exFirstLast[key]){ exFirstLast[key]={firstKg:topKg, lastKg:topKg, firstDate:d, lastDate:d}; }
+        else { exFirstLast[key].lastKg=topKg; exFirstLast[key].lastDate=d; }
+        // PR-Zählung
+        if(maxSoFar[key]==null){ maxSoFar[key]=topKg; }
+        else if(topKg>maxSoFar[key]){ maxSoFar[key]=topKg; prCount++; }
+      });
+    });
+  });
+
+  // Meist trainierte Übung
+  let topEx=null, topExN=0;
+  Object.keys(exCount).forEach(k=>{ if(exCount[k]>topExN){ topExN=exCount[k]; topEx=k; } });
+  // Größter Kraftzuwachs (absolut in kg, nur wo gesteigert)
+  let bestGain=null, bestGainKg=0;
+  Object.keys(exFirstLast).forEach(k=>{
+    const fl=exFirstLast[k];
+    const gain=fl.lastKg-fl.firstKg;
+    if(gain>bestGainKg){ bestGainKg=gain; bestGain={key:k, from:fl.firstKg, to:fl.lastKg, gain}; }
+  });
+  // Stärkster Monat (nach Volumen)
+  let topMonth=null, topMonthVol=0;
+  Object.keys(monthVolume).forEach(m=>{ if(monthVolume[m]>topMonthVol){ topMonthVol=monthVolume[m]; topMonth=parseInt(m,10); } });
+  // Gewichtsverlauf im Jahr
+  const wy=(state.weight||[]).filter(w=>w.date&&w.date.startsWith(prefix)).sort((a,b)=>a.date<b.date?-1:1);
+  const weightChange=wy.length>=2?{from:wy[0].kg, to:wy[wy.length-1].kg, diff:Math.round((wy[wy.length-1].kg-wy[0].kg)*10)/10}:null;
+  // Längste Serie aufeinanderfolgender Trainingswochen (mind. 1 Einheit pro Woche)
+  const weeksWithTraining=new Set();
+  dates.forEach(d=>{ const e=state.log[d]; if(e&&e.done&&e.type&&e.type!=='rest'){ const mon=weekStartMonday(isoToDate(d)); weeksWithTraining.add(isoOf(mon)); } });
+  const sortedWeeks=[...weeksWithTraining].sort();
+  let longestStreak=0, curStreak=0, prevWeek=null;
+  sortedWeeks.forEach(wk=>{
+    if(prevWeek){
+      const diff=Math.round((isoToDate(wk)-isoToDate(prevWeek))/(7*86400000));
+      curStreak = diff===1 ? curStreak+1 : 1;
+    } else curStreak=1;
+    if(curStreak>longestStreak) longestStreak=curStreak;
+    prevWeek=wk;
+  });
+
+  return {
+    year:y,
+    hasData: dates.length>0,
+    totalSessions,
+    totalVolume:Math.round(totalVolume),
+    topExercise: topEx?{name:exName[topEx], count:topExN}:null,
+    biggestGain: bestGain?{name:exName[bestGain.key], from:bestGain.from, to:bestGain.to, gain:bestGain.gain}:null,
+    strongestMonth: topMonth?{month:topMonth, volume:topMonthVol}:null,
+    weightChange,
+    longestStreak,
+    prCount
+  };
+}
+const MONTH_NAMES=['Januar','Februar','M\u00e4rz','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+/* Soll der Jahresrückblick-Button gerade sichtbar sein? -> null (nein) oder Jahreszahl (ja) */
+function wrappedSeasonYear(){
+  const now=new Date();
+  const m=now.getMonth(); // 0=Jan ... 11=Dez
+  if(m===11) return now.getFullYear();   // Dezember: aktuelles Jahr
+  if(m===0) return now.getFullYear()-1;  // Januar: Vorjahr
+  return null;                            // sonst: kein Button
+}
+/* Steuerung Jahresrückblick */
+function openWrapped(year){
+  wrappedData=yearWrapped(year||new Date().getFullYear());
+  wrappedCard=0; wrappedOpen=true; render(); scrollAppTop();
+}
+function closeWrapped(){ wrappedOpen=false; render(); }
+function wrappedCards(){
+  const w=wrappedData; if(!w) return [];
+  const cards=[];
+  cards.push({type:'intro'});
+  cards.push({type:'sessions'});
+  cards.push({type:'volume'});
+  if(w.topExercise) cards.push({type:'topex'});
+  if(w.biggestGain) cards.push({type:'gain'});
+  if(w.strongestMonth) cards.push({type:'month'});
+  if(w.weightChange) cards.push({type:'weight'});
+  if(w.longestStreak>0) cards.push({type:'streak'});
+  cards.push({type:'prs'});
+  cards.push({type:'outro'});
+  return cards;
+}
+function wrappedNext(){
+  const n=wrappedCards().length;
+  if(wrappedCard>=n-1){ closeWrapped(); return; }
+  wrappedCard++; render();
+}
+function wrappedPrev(){ if(wrappedCard>0){ wrappedCard--; render(); } }
+
+function renderWrapped(){
+  const w=wrappedData; if(!w) return '';
+  const cards=wrappedCards();
+  const card=cards[wrappedCard]||cards[0];
+  const t=card.type;
+  // Fortschrittsbalken oben
+  const segs=cards.map((c,i)=>`<div class="wr-seg${i<wrappedCard?' done':''}${i===wrappedCard?' active':''}"></div>`).join('');
+  let inner='';
+  if(t==='intro'){
+    inner=`<div class="wr-kicker">Dein Trainingsjahr</div>
+      <div class="wr-bignum">${w.year}</div>
+      <div class="wr-sub">Lass uns zur\u00fcckblicken, was du dieses Jahr bewegt hast \ud83d\udcaa</div>`;
+  } else if(t==='sessions'){
+    inner=`<div class="wr-kicker">Du hast trainiert</div>
+      <div class="wr-bignum">${w.totalSessions}<span class="wr-unit">\u00d7</span></div>
+      <div class="wr-sub">Trainingseinheiten ${w.year}. Jede einzelne hat sich gelohnt.</div>`;
+  } else if(t==='volume'){
+    const tonnes=Math.round(w.totalVolume/100)/10;
+    inner=`<div class="wr-kicker">Gesamtgewicht bewegt</div>
+      <div class="wr-bignum">${fmt(tonnes)}<span class="wr-unit">t</span></div>
+      <div class="wr-sub">${fmt(w.totalVolume)} kg insgesamt \u2013 das ist eine echte Hausnummer.</div>`;
+  } else if(t==='topex'){
+    inner=`<div class="wr-kicker">Deine Lieblings\u00fcbung</div>
+      <div class="wr-bigtext">${escapeHtml(w.topExercise.name)}</div>
+      <div class="wr-sub">${w.topExercise.count}\u00d7 trainiert \u2013 die hast du wirklich ins Herz geschlossen.</div>`;
+  } else if(t==='gain'){
+    const g=w.biggestGain;
+    const assisted=g.from<0||g.to<0;
+    inner=`<div class="wr-kicker">Gr\u00f6\u00dfter Kraftzuwachs</div>
+      <div class="wr-bigtext">${escapeHtml(g.name)}</div>
+      <div class="wr-sub">${fmt(g.from)} kg \u2192 ${fmt(g.to)} kg \u00b7 <b class="wr-hl">+${fmt(g.gain)} kg</b>${assisted?' weniger Hilfe':''} dieses Jahr.</div>`;
+  } else if(t==='month'){
+    const m=w.strongestMonth;
+    inner=`<div class="wr-kicker">Dein st\u00e4rkster Monat</div>
+      <div class="wr-bigtext">${MONTH_NAMES[m.month-1]}</div>
+      <div class="wr-sub">${fmt(Math.round(m.volume/100)/10)} t bewegt \u2013 da warst du nicht zu bremsen.</div>`;
+  } else if(t==='weight'){
+    const wc=w.weightChange;
+    const dirTxt=wc.diff>0?`+${fmt(wc.diff)} kg`:wc.diff<0?`${fmt(wc.diff)} kg`:'stabil';
+    inner=`<div class="wr-kicker">Dein Gewichtsverlauf</div>
+      <div class="wr-bignum">${fmt(wc.to)}<span class="wr-unit">kg</span></div>
+      <div class="wr-sub">Von ${fmt(wc.from)} kg auf ${fmt(wc.to)} kg \u00b7 <b class="wr-hl">${dirTxt}</b> \u00fcbers Jahr.</div>`;
+  } else if(t==='streak'){
+    inner=`<div class="wr-kicker">Deine l\u00e4ngste Serie</div>
+      <div class="wr-bignum">${w.longestStreak}<span class="wr-unit">Wochen</span></div>
+      <div class="wr-sub">am St\u00fcck trainiert, ohne eine Woche auszulassen. Konstanz schl\u00e4gt alles.</div>`;
+  } else if(t==='prs'){
+    inner=`<div class="wr-kicker">Neue pers\u00f6nliche Rekorde</div>
+      <div class="wr-bignum">${w.prCount}<span class="wr-unit">\ud83c\udf89</span></div>
+      <div class="wr-sub">${w.prCount===0?'Dieses Jahr noch keiner \u2013 die kommen!':'mal hast du dich selbst \u00fcbertroffen. Stark!'}</div>`;
+  } else if(t==='outro'){
+    inner=`<div class="wr-kicker">Das war ${w.year}</div>
+      <div class="wr-bigtext">Weiter so! \ud83d\udd25</div>
+      <div class="wr-sub">${w.totalSessions} Einheiten, ${fmt(Math.round(w.totalVolume/100)/10)} t, ${w.prCount} Rekorde. Auf ein noch st\u00e4rkeres Jahr.</div>
+      <button class="wr-close-btn" onclick="event.stopPropagation();closeWrapped()">Fertig</button>`;
+  }
+  return `<div class="wr-overlay" onclick="wrappedNext()">
+    <div class="wr-segs">${segs}</div>
+    <button class="wr-x" onclick="event.stopPropagation();closeWrapped()">\u2715</button>
+    <div class="wr-tapzone left" onclick="event.stopPropagation();wrappedPrev()"></div>
+    <div class="wr-tapzone right" onclick="event.stopPropagation();wrappedNext()"></div>
+    <div class="wr-card wr-card-${t}">${inner}</div>
+    <div class="wr-hint">Tippen zum Weiterbl\u00e4ttern</div>
+  </div>`;
+}
+
 function renderCockpit(){
   const now=new Date();
   const greeting=now.getHours()<11?'Guten Morgen':now.getHours()<18?'Servus':'Guten Abend';
@@ -1649,6 +1910,12 @@ function renderCockpit(){
     </div>`;
   }
 
+  const wrYear=wrappedSeasonYear();
+  const wrappedBtn=wrYear?`<button class="ck-wrapped" onclick="openWrapped(${wrYear})">
+      <span class="ck-wrapped-ico">\u2728</span>
+      <span class="ck-wrapped-txt"><b>Gym Wrapped ${wrYear}</b><br><span class="ck-wrapped-sub">Dein Jahresr\u00fcckblick \u2013 jetzt ansehen</span></span>
+      <span class="ck-wrapped-arr">\u2192</span>
+    </button>`:'';
   return `
     ${header()}
     <div class="ck-hero">
@@ -1662,6 +1929,7 @@ function renderCockpit(){
     </div>
     <div class="ck-tiles">${tiles.join('')}</div>
     ${neglectHtml}
+    ${wrappedBtn}
   `;
 }
 
@@ -2170,9 +2438,15 @@ function renderHistory(){
     <button class="subtab ${histSub==='progress'?'active':''}" onclick="setHistSub('progress')">Fortschritt</button>
     <button class="subtab ${histSub==='volume'?'active':''}" onclick="setHistSub('volume')">Volumen</button>
   </div>`;
+  const wrYear=wrappedSeasonYear();
+  const wrappedBtn=wrYear?`<button class="hist-wrapped" onclick="openWrapped(${wrYear})">
+      <span>\u2728 Gym Wrapped ${wrYear} ansehen</span>
+      <span class="hist-wrapped-arr">\u2192</span>
+    </button>`:'';
   return `
     ${header()}
     <div class="ptitle">Verlauf</div>
+    ${wrappedBtn}
     ${sub}
     ${histSub==='activity'?historyActivityHtml():histSub==='volume'?historyVolumeHtml():historyProgressHtml()}
   `;
@@ -2371,26 +2645,45 @@ function historyProgressHtml(){
       if(series.length>1&&diff>0){ trendCls='up'; trendTxt=`+${fmt(diff)} kg seit Start \ud83d\udcc8`; }
       else if(series.length>1&&diff<0){ trendCls='down'; trendTxt=`${fmt(diff)} kg seit Start`; }
       else if(series.length===1){ trendCls='flat'; trendTxt='erster Eintrag'; }
-      const pts=series.slice(-8).reverse();
-      const ppHtml=pts.map((s,k)=>{
-        const realIdx=series.length-1-k;
+      const total=series.length;
+      const ptsKey=u.id+'|'+e.id;
+      const expanded=!!openProgPoints[ptsKey];
+      const LIMIT=5;
+      const showCount=expanded?total:Math.min(LIMIT,total);
+      // Sätze sauber darstellen: nur ganze Sätze, nie mitten im Wert abgeschnitten
+      function fmtSets(rows){
+        const all=rows.filter(r=>r.kg!=null);
+        const maxShow=4;
+        const shown=all.slice(0,maxShow).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`);
+        let txt=shown.join(', ');
+        if(all.length>maxShow) txt+=` +${all.length-maxShow}`;
+        return txt;
+      }
+      let ppHtml='';
+      for(let k=0;k<showCount;k++){
+        const realIdx=total-1-k; // neueste zuerst
+        const s=series[realIdx];
         const prev=realIdx>0?series[realIdx-1]:null;
         let kgCls='';
         if(prev){ if(s.kg>prev.kg) kgCls='inc'; else if(s.kg<prev.kg) kgCls='dec'; }
         const d=isoToDate(s.date);
-        const setsTxt=s.rows.filter(r=>r.kg!=null).map(r=>`${fmt(r.kg)}\u00d7${fmtRowReps(r)}${r.warmup?' (W)':''}`).join(', ');
-        return `<div class="pp">
+        const setsTxt=fmtSets(s.rows);
+        ppHtml+=`<div class="pp">
           <span class="ppd">${d.getDate()}.${d.getMonth()+1}.${String(d.getFullYear()).slice(2)}</span>
           <span class="ppk ${kgCls}">${fmt(s.kg)} kg${kgCls==='inc'?' \u2191':kgCls==='dec'?' \u2193':''}</span>
-          <span class="ppn">${escapeHtml(short(setsTxt,24))}${s.note?' \u00b7 '+escapeHtml(short(s.note.replace(/\n/g,' '),22)):''}</span>
+          <span class="ppn">${escapeHtml(setsTxt)}${s.note?' \u00b7 '+escapeHtml(short(s.note.replace(/\n/g,' '),22)):''}</span>
         </div>`;
-      }).join('');
+      }
+      const moreBtn=total>LIMIT
+        ? `<button class="pp-more" onclick="toggleProgPoints('${escapeAttr(ptsKey)}')">${expanded?'Weniger anzeigen \u2303':'Alle '+total+' anzeigen \u2304'}</button>`
+        : '';
       return `<div class="progcard">
         <div class="pc-head"><div class="pc-name">${escapeHtml(e.name||'(unbenannt)')}</div>
           <div class="pc-now">${fmt(latest.kg)}<small> kg</small></div></div>
         <div class="pc-trend ${trendCls}">${trendTxt}</div>
         ${buildExerciseChart(series)}
         <div class="pc-points">${ppHtml}</div>
+        ${moreBtn}
       </div>`;
     }).filter(Boolean).join('');
     if(!cards) return '';
@@ -2810,6 +3103,12 @@ function renderData(){
       <button class="dc-btn ghost" style="border-color:var(--push);color:var(--push);" onclick="restartOnboarding()">App zur\u00fccksetzen & neu einrichten</button>
     </div>
 
+    <div class="datacard" style="box-shadow:inset 0 0 0 1px rgba(205,253,52,.18);">
+      <div class="dc-label">\u2728 Gym Wrapped (Test)</div>
+      <div class="dc-text">Jahresr\u00fcckblick als Vorschau \u00f6ffnen \u2013 unabh\u00e4ngig vom Datum. Im normalen Betrieb erscheint der Button automatisch nur im Dezember &amp; Januar (im Cockpit und Verlauf). Dieser Test-Zugang kann sp\u00e4ter entfernt werden.</div>
+      <button class="dc-btn ghost" onclick="openWrapped(${new Date().getFullYear()})">R\u00fcckblick ${new Date().getFullYear()} \u00f6ffnen</button>
+    </div>
+
     <div class="foot">Tipp: Erstelle vor gr\u00f6\u00dferen \u00c4nderungen oder vor einem Browserwechsel immer ein Backup.</div>
   `;
 }
@@ -2908,6 +3207,7 @@ function togglePlanNameEdit(){ planNameEdit=!planNameEdit; render(); }
 function setHistSub(s){ histSub=s; if(s==='progress') openProgUnits=null; render(); scrollAppTop(); }
 function setProgMetric(m){ progMetric=m; render(); }
 function toggleProgUnit(id){ if(!openProgUnits) openProgUnits={}; openProgUnits[id]=!openProgUnits[id]; render(); }
+function toggleProgPoints(key){ openProgPoints[key]=!openProgPoints[key]; render(); }
 function setRange(r){ weightRange=r; render(); }
 function setWeightDate(v){ weightDate=v||todayISO(); render(); }
 function editWeightEntry(date){ weightDate=date; render(); scrollAppTop(); }
@@ -3065,4 +3365,4 @@ function short(s,n){ n=n||16; return s.length>n?s.slice(0,n-1)+'\u2026':s; }
 })();
 </script>
 </body>
-</html>
+  </html>
