@@ -952,7 +952,7 @@ function cardioDefHtmlUnit(unitId){
   const rows=acts.map(a=>`
     <div class="exrow">
       <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
-      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch">\u25b2</button>
+      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
       <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
       <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
     </div>`).join('');
@@ -2091,7 +2091,7 @@ function exDefHtmlUnit(unitId){
       return `<div class="exrow-wrap">
         <div class="exrow">
           <input value="${escapeAttr(e.name)}" placeholder="Cardio-Name (z.B. Laufband Aufw\u00e4rmen)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
-          <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch">\u25b2</button>
+          <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
           <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',1)" title="Runter">\u25bc</button>
           <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
         </div>
@@ -2131,7 +2131,7 @@ function exDefHtmlUnit(unitId){
     return `<div class="exrow-wrap">
       <div class="exrow">
         <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
-        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch">\u25b2</button>
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
         <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',1)" title="Runter">\u25bc</button>
         <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
       </div>
