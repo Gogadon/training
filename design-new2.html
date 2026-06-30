@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Beta Trainingszyklus</title>
+<title>Trainingszyklus</title>
 <meta name="theme-color" content="#0c0c0e">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -43,7 +43,7 @@
     }
 
     function buildManifest(icons){
-      var mani={name:'Beta Trainingszyklus',short_name:'Beta Training',start_url:'.',scope:'.',
+      var mani={name:'Trainingszyklus',short_name:'Training',start_url:'.',scope:'.',
         display:'standalone',orientation:'portrait',background_color:'#0c0c0e',theme_color:'#0c0c0e',
         icons:icons};
       // data: URL (bewährt in Chrome/Samsung; start_url wird gegen das Dokument aufgelöst)
@@ -1253,6 +1253,28 @@ async function load(){
     if(!Array.isArray(p.cycle)) p.cycle=[];
     if(!p.week||typeof p.week!=='object') p.week={0:'',1:'',2:'',3:'',4:'',5:'',6:''};
   });
+  ensureCardioUnits();
+}
+/* Einmalige Umstellung: bisherige Rest-Einheiten zu Cardio-Einheiten machen
+   und mit den 3 Standard-Aktivitäten (lauf1/bike/lauf2) vorbefüllen, damit
+   bestehende Cardio-Daten (entry.cardio[key]) erhalten bleiben. */
+const DEFAULT_CARDIO=[
+  {id:'lauf1', name:'Laufband 1'},
+  {id:'bike',  name:'Fahrrad'},
+  {id:'lauf2', name:'Laufband 2'},
+];
+function ensureCardioUnits(){
+  let changed=false;
+  Object.values(state.units||{}).forEach(u=>{
+    if(u.cardio===undefined && u.type==='rest'){
+      u.cardio=true;
+      if(!Array.isArray(u.exercises)||u.exercises.length===0){
+        u.exercises=DEFAULT_CARDIO.map(c=>({id:c.id, name:c.name}));
+      }
+      changed=true;
+    }
+  });
+  if(changed){ try{ save(); }catch(e){} }
 }
 async function save(){ try{ await storageSet(STORE_KEY,JSON.stringify(state)); }catch(e){} }
 
@@ -1901,7 +1923,8 @@ function renderToday(){
   const logEntry=state.log[iso]||{};
   const isDone=!!logEntry.done;
   const sessionNote=logEntry.sessionNote||'';
-  const isRest=tType==='rest';
+  const isCardio=!!(todayUnitObj&&todayUnitObj.cardio);
+  const isRest=tType==='rest'&&!isCardio;
   const isWeek=plan.mode==='week';
   const isFree=!todayInsert&&!todayUnitObj; // Wochenplan: Tag ohne Einheit = frei
 
@@ -1933,10 +1956,16 @@ function renderToday(){
     sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist eine Sonder-Einheit \u2013 frei trainieren, kein Log n\u00f6tig.</div></div>`;
   } else if(isFree){
     sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist ein freier Tag \u2013 keine Einheit zugewiesen. Genie\u00df die Pause! \ud83d\ude0c</div></div>`;
+  } else if(isCardio){
+    sessionHtml=`<div class="sessionwrap">
+      <div class="ses-head"><span>\ud83c\udfc3 Cardio \u00b7 ${escapeHtml(short(todayUnit,20))}</span>
+        <button class="ses-addbtn" onclick="gotoPlanUnitId('${todayUnitId_}')">+ Aktivit\u00e4t</button></div>
+      ${cardioLogHtml(logEntry, todayUnitObj)}
+    </div>`;
   } else if(isRest){
     sessionHtml=`<div class="sessionwrap">
-      <div class="ses-head"><span>\ud83d\udeb4 Cardio heute</span></div>
-      ${cardioLogHtml(logEntry)}
+      <div class="ses-head"><span>\ud83d\ude0c Erholungstag</span></div>
+      <div class="ses-empty">Heute ist ein reiner Erholungstag \u2013 genie\u00df die Pause!</div>
     </div>`;
   } else {
     sessionHtml=`<div class="sessionwrap">
@@ -2282,11 +2311,7 @@ function sessionExercisesHtml(idx,unitId){
 }
 
 /* ============ CARDIO LOG ============ */
-const CARDIO_UNITS=[
-  {key:'lauf1', name:'Laufband 1', icon:'\ud83c\udfc3'},
-  {key:'bike',  name:'Fahrrad',    icon:'\ud83d\udeb4'},
-  {key:'lauf2', name:'Laufband 2', icon:'\ud83c\udfc3'},
-];
+/* CARDIO_UNITS entfernt - Aktivitaeten kommen aus unit.exercises (DEFAULT_CARDIO + ensureCardioUnits). */
 
 function cardioSummary(d){
   const parts=[];
@@ -2295,30 +2320,36 @@ function cardioSummary(d){
   else if(d.maxPulse!=null) parts.push(`max ${d.maxPulse} bpm`);
   return parts.length?parts.join(' \u00b7 '):'keine Werte';
 }
-function cardioLogHtml(entry){
+function cardioLogHtml(entry, unit){
   const cd=entry.cardio||{};
-  const units=CARDIO_UNITS.map(u=>{
-    const d=cd[u.key]||{};
+  const acts=(unit&&Array.isArray(unit.exercises))?unit.exercises:[];
+  if(!acts.length){
+    return `<div class="ex-empty">Noch keine Cardio-Aktivit\u00e4ten f\u00fcr diese Einheit.<br>
+      Lege sie im <b>Plan</b>-Tab bei dieser Einheit an.</div>`;
+  }
+  const units=acts.map(act=>{
+    const key=act.id;
+    const d=cd[key]||{};
     const checked=!!d.done;
-    const open=isCardioOpen(u.key,checked);
+    const open=isCardioOpen(key,checked);
     const body=`<div class="cardio-fields">
         <div class="cfield"><label>DAUER (min)</label>
           <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
-            value="${d.min!=null?d.min:''}" oninput="saveCardio('${u.key}','min',this.value)"></div>
+            value="${d.min!=null?d.min:''}" oninput="saveCardio('${key}','min',this.value)"></div>
       </div>
       <div class="pulse-row">
         <div class="cfield"><label>\u2665 \u00d8-PULS (bpm)</label>
           <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
-            value="${d.avgPulse!=null?d.avgPulse:''}" oninput="saveCardio('${u.key}','avgPulse',this.value)"></div>
+            value="${d.avgPulse!=null?d.avgPulse:''}" oninput="saveCardio('${key}','avgPulse',this.value)"></div>
         <div class="cfield"><label>\u2665 MAX-PULS (bpm)</label>
           <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
-            value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${u.key}','maxPulse',this.value)"></div>
+            value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${key}','maxPulse',this.value)"></div>
       </div>`;
     return `<div class="ex-card${checked?' checked':''}">
-      <div class="ex-head" onclick="toggleCardioOpen('${u.key}')">
-        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${u.key}')">\u2713</button>
+      <div class="ex-head" onclick="toggleCardioOpen('${key}')">
+        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${key}')">\u2713</button>
         <div class="ex-headtxt">
-          <div class="ex-name">${u.icon} ${u.name}</div>
+          <div class="ex-name">\ud83c\udfc3 ${escapeHtml(act.name||'Cardio')}</div>
           ${checked?`<div class="ex-sub">${escapeHtml(cardioSummary(d))}</div>`:''}
         </div>
         ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
@@ -2504,8 +2535,11 @@ function historyActivityHtml(){
       if(insert){
         // Einschub: nur Name, keine Session-Daten
       } else if(displayType==='rest'&&e.cardio){
-        const parts=CARDIO_UNITS.filter(u=>e.cardio[u.key]&&e.cardio[u.key].done).map(u=>{
-          const d=e.cardio[u.key]; let s=u.name;
+        const cu=unitById(e.unitId||info.unitId);
+        const acts=(cu&&Array.isArray(cu.exercises))?cu.exercises:[];
+        const nameFor=key=>{ const a=acts.find(x=>x.id===key); if(a) return a.name; const def=DEFAULT_CARDIO.find(x=>x.id===key); return def?def.name:key; };
+        const parts=Object.keys(e.cardio).filter(key=>e.cardio[key]&&e.cardio[key].done).map(key=>{
+          const d=e.cardio[key]; let s=nameFor(key);
           if(d.min) s+=` ${d.min}min`;
           if(d.avgPulse) s+=` \u00d8${d.avgPulse}`;
           return s;
