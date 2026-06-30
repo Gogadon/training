@@ -932,6 +932,29 @@ function delExerciseFromUnit(unitId,exId){
   u.exercises=(u.exercises||[]).filter(e=>e.id!==exId);
   save(); render();
 }
+/* Cardio-Flag einer Einheit umschalten */
+function toggleUnitCardio(unitId){
+  const u=unitById(unitId); if(!u) return;
+  if(u.cardio){ delete u.cardio; }
+  else { u.cardio=true; if(!Array.isArray(u.exercises)) u.exercises=[]; }
+  save(); render();
+}
+/* Verwaltung der Cardio-Aktivitäten einer Einheit (nur Name, feste 3 Felder) */
+function cardioDefHtmlUnit(unitId){
+  const u=unitById(unitId); if(!u) return '';
+  const acts=u.exercises||[];
+  const rows=acts.map(a=>`
+    <div class="exrow">
+      <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
+      <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+    </div>`).join('');
+  return `<div class="exdef">
+    <div class="exlabel">Cardio-Aktivit\u00e4ten f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
+    <div class="hint" style="margin-bottom:8px;">Jede Aktivit\u00e4t hat dieselben Felder: Dauer, \u00d8-Puls, Max-Puls. Nur der Name ist frei w\u00e4hlbar.</div>
+    ${rows||'<div class="ex-empty" style="padding:14px;">Noch keine Aktivit\u00e4t. F\u00fcge unten z.B. \u201eLaufband\u201c oder \u201eStairmaster\u201c hinzu.</div>'}
+    <button class="ex-add" onclick="addExerciseToUnit('${unitId}')">+ Cardio-Aktivit\u00e4t hinzuf\u00fcgen</button>
+  </div>`;
+}
 
 /* --- Session-Sätze: state.log[iso].sets[unitId][exId] = {rows:[{kg,reps}],checked} --- */
 function getSessionSets(iso,unitId){
@@ -1390,18 +1413,22 @@ function renderPlan(){
   // --- Einheiten-Bibliothek ---
   const libCards=allUnits().map(u=>{
     const open=libOpenId===u.id;
-    const isRestU=u.type==='rest';
+    const isCardioU=!!u.cardio;
     const exCount=getExercisesByUnitId(u.id).length;
     const usage=unitUsage(u.id);
     return `<div class="pcard">
       <div class="pcard-head ${open?'open':''}" onclick="toggleLibCard('${u.id}')">
         <button class="tdot-btn ${u.type}" onclick="event.stopPropagation();cycleTypeUnit('${u.id}')" title="Farbe"></button>
         <input class="pname-inp" value="${escapeAttr(u.name)}" onclick="event.stopPropagation()" oninput="renameUnit('${u.id}',this.value)" placeholder="Einheit-Name">
-        ${!isRestU?`<span class="pexcount">${exCount} \u00dcb.</span>`:'<span class="pexcount rest">Cardio</span>'}
+        ${isCardioU?'<span class="pexcount rest">Cardio</span>':`<span class="pexcount">${exCount} \u00dcb.</span>`}
         <span class="pchev">${open?'\u2303':'\u2304'}</span>
       </div>
       ${open?`<div class="pcard-body">
-        ${isRestU?`<div class="ex-empty">Active Rest \u2013 Cardio tr\u00e4gst du im <b>Heute</b>-Tab ein. (Eine Einheit gilt als Rest, wenn ihre Farbe grau ist.)</div>`:exDefHtmlUnit(u.id)}
+        <div class="prog-rule" style="margin-bottom:10px;">
+          <span class="prog-label">Cardio-Einheit:</span>
+          <button class="prog-type-btn${isCardioU?' on':''}" onclick="toggleUnitCardio('${u.id}')">${isCardioU?'An':'Aus'}</button>
+        </div>
+        ${isCardioU?cardioDefHtmlUnit(u.id):exDefHtmlUnit(u.id)}
         <div class="pcard-actions">
           <span class="lib-usage">${usage.length?'verwendet in: '+escapeHtml(usage.join(', ')):'noch nicht zugewiesen'}</span>
           <button class="parrow del" onclick="event.stopPropagation();delUnitFromLibrary('${u.id}')">\u2715 l\u00f6schen</button>
