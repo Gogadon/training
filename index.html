@@ -418,6 +418,36 @@
   .hrow .hcheck{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
     font-size:14px;font-weight:700;border:1.5px solid var(--line);color:transparent;}
   .hrow.done .hcheck{background:var(--accent);border-color:var(--accent);color:#0c0c0e;}
+  .hrow .hshare{width:30px;height:30px;flex-shrink:0;border-radius:9px;background:var(--surface-2);
+    border:1px solid var(--line);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;}
+  .hrow .hshare:active{background:var(--line);}
+  /* Teilen-Bild-Card */
+  .sharecard{width:380px;box-sizing:border-box;padding:26px 24px 20px;background:linear-gradient(160deg,#16161b 0%,#0c0c0e 100%);
+    font-family:'Sora',system-ui,sans-serif;color:var(--text);}
+  .sharecard .sc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .sharecard .sc-brand{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:700;}
+  .sharecard .sc-brand .sc-brandtxt{font-size:11px;letter-spacing:2.5px;}
+  .sharecard .sc-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+  .sharecard .sc-date{font-size:11px;color:var(--muted);}
+  .sharecard .sc-unit{display:flex;align-items:center;gap:10px;font-family:'Anton',sans-serif;font-size:27px;
+    margin-bottom:18px;line-height:1.1;}
+  .sharecard .sc-unit .sc-unittxt{letter-spacing:.5px;text-transform:uppercase;}
+  .sharecard .sc-tdot{width:13px;height:13px;border-radius:50%;flex-shrink:0;}
+  .sharecard .sc-tdot.push{background:var(--push);}.sharecard .sc-tdot.pull{background:var(--pull);}
+  .sharecard .sc-tdot.legs{background:var(--legs);}.sharecard .sc-tdot.rest{background:var(--rest);}
+  .sharecard .sc-tdot.other{background:var(--muted);}
+  .sharecard .sc-exlist{display:flex;flex-direction:column;gap:1px;background:var(--line);border-radius:14px;overflow:hidden;}
+  .sharecard .sc-ex{background:#16161b;padding:12px 15px;}
+  .sharecard .sc-exn{font-size:14px;font-weight:600;margin-bottom:3px;}
+  .sharecard .sc-exs{font-size:13px;color:var(--accent);font-weight:500;letter-spacing:.3px;}
+  .sharecard .sc-note{margin-top:14px;font-size:12.5px;color:var(--muted);font-style:italic;line-height:1.4;}
+  .sharecard .sc-stats{display:flex;gap:10px;margin-top:18px;}
+  .sharecard .sc-stat{flex:1;background:var(--surface-2);border-radius:12px;padding:12px 8px;text-align:center;}
+  .sharecard .sc-stat b{display:block;font-family:'Anton',sans-serif;font-size:22px;color:var(--accent);letter-spacing:.5px;}
+  .sharecard .sc-stat b small{font-size:13px;}
+  .sharecard .sc-stat span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .sharecard .sc-foot{margin-top:16px;text-align:center;font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
   .hrow.future{opacity:.4;}
   .hrow .htoday{font-size:9px;letter-spacing:1px;color:var(--accent);font-weight:700;}
 
@@ -753,6 +783,11 @@
   .finishbtn:active{transform:scale(.985);}
   .finishbtn.done{background:var(--surface);color:var(--accent);border:1px solid var(--accent);}
   .finishbtn .bx{font-size:18px;}
+  .sharebtn-today{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+    padding:14px;border-radius:14px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px;
+    display:flex;align-items:center;justify-content:center;gap:8px;}
+  .sharebtn-today:active{background:var(--line);}
+  .sharebtn-today .sb-ic{font-size:17px;font-weight:700;}
   .ghostbtn{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted);
     padding:13px;border-radius:14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;margin-bottom:12px;}
   .ghostbtn:active{background:var(--surface);}
@@ -1020,9 +1055,9 @@ function bestBeforeToday(unitId,exId){
   const today=todayISO();
   let maxKg=null, repsAtMax=null;
   Object.keys(state.log).filter(d=>d<today).forEach(d=>{
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
-    if(s&&s[exId]){
-      normSets(s[exId]).rows.forEach(r=>{
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      normSets(unitSets[exId]).rows.forEach(r=>{
         if(r.warmup||r.kg==null) return;
         const mr=rowMetricReps(r); // einarmig: schwächere Seite
         if(maxKg==null||r.kg>maxKg){ maxKg=r.kg; repsAtMax=(mr!=null?mr:null); }
@@ -1147,10 +1182,9 @@ function lastSessionFor(unitName,exId){
   const today=todayISO();
   const dates=Object.keys(state.log).filter(d=>d<today).sort().reverse();
   for(const d of dates){
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
-    if(s&&s[exId]){
-      const e=normSets(s[exId]);
-      if(e.rows.some(r=>r.kg!=null)) return {date:d, rows:e.rows};
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      return {date:d, rows:normSets(unitSets[exId]).rows};
     }
   }
   return null;
@@ -1161,10 +1195,10 @@ function recentSessionsFor(unitName,exId,n){
   const dates=Object.keys(state.log).filter(d=>d<today).sort().reverse();
   const out=[];
   for(const d of dates){
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
-    if(s&&s[exId]){
-      const e=normSets(s[exId]);
-      if(e.rows.some(r=>r.kg!=null)){ out.push({date:d, rows:e.rows}); if(out.length>=(n||4)) break; }
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      out.push({date:d, rows:normSets(unitSets[exId]).rows});
+      if(out.length>=(n||4)) break;
     }
   }
   return out;
@@ -2084,10 +2118,12 @@ function renderToday(){
       <div class="vol-big">${vol.total.toLocaleString('de-DE')}<small> kg</small></div>
       <div class="vol-sub">bewegt heute \u00b7 ${vol.setCount} S\u00e4tze gez\u00e4hlt</div>
     </div>`:'';
+  const shareBtnToday=(isDone&&!todayInsert&&!isFree)?`
+    <button class="sharebtn-today" onclick="shareSession('${iso}')"><span class="sb-ic">\u2191</span>Training als Bild teilen</button>`:'';
   const finishBtn=(todayInsert||isFree)?'':`
     <button class="finishbtn ${isDone?'done':''}" onclick="toggleDone()">
       <span class="bx">${isDone?'\u2713':'\u25cb'}</span>${isDone?'Session abgeschlossen \u2013 tippen zum \u00d6ffnen':'Session abschlie\u00dfen'}
-    </button>${volHtml}`;
+    </button>${volHtml}${shareBtnToday}`;
   // Einschub-Button (für heute)
   const insertBtn=todayInsert?'':`
     <button class="ghostbtn" onclick="gotoPlanTermine()">Termin / Sonder-Einheit eintragen</button>`;
@@ -2682,6 +2718,98 @@ function historyVolumeHtml(){
   return `<div class="hint" style="margin-bottom:14px;">Bewegtes Gewicht pro Einheit und Woche (nur Arbeitss\u00e4tze, Mo\u2013So). „t" = Tonnen.</div>${cards}`;
 }
 
+/* ============ TEILEN: Session als Bild ============ */
+let _h2cLoading=null;
+function ensureHtml2Canvas(){
+  if(window.html2canvas) return Promise.resolve(window.html2canvas);
+  if(_h2cLoading) return _h2cLoading;
+  _h2cLoading=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=()=>resolve(window.html2canvas);
+    s.onerror=()=>{ _h2cLoading=null; reject(new Error('html2canvas konnte nicht geladen werden (bist du online?)')); };
+    document.head.appendChild(s);
+  });
+  return _h2cLoading;
+}
+/* Baut die statische Bild-Card einer Session (konkrete Übungen + Sätze, gemischt Kraft/Cardio) */
+function buildShareCardHtml(iso){
+  const e=state.log[iso]||{};
+  const info=unitForISO(iso);
+  const insert=(state.inserts||{})[iso];
+  const unit=unitById(e.unitId||info.unitId);
+  const d=new Date(iso+'T00:00:00');
+  const dateStr=WEEKDAYS[d.getDay()]+', '+d.getDate()+'. '+MONTHS[d.getMonth()]+' '+d.getFullYear();
+  const unitName=insert?insert.label:(unit?unit.name:(info.unit||'Training'));
+  const type=insert?'other':(unit?unit.type:info.type);
+  let exRows=''; let exCount=0, cardioCount=0;
+  if(unit&&Array.isArray(unit.exercises)){
+    const sets=(e.sets&&e.sets[unit.id])||{};
+    unit.exercises.forEach(ex=>{
+      const isCardio=unit.cardio||ex.cardio;
+      if(isCardio){
+        const cd=(e.cardio&&e.cardio[ex.id])||{};
+        if(!cd.done && cd.min==null && cd.avgPulse==null && cd.maxPulse==null) return;
+        cardioCount++;
+        exRows+=`<div class="sc-ex"><div class="sc-exn">\ud83c\udfc3 ${escapeHtml(ex.name||'Cardio')}</div><div class="sc-exs">${escapeHtml(cardioSummary(cd)||'\u2014')}</div></div>`;
+      } else {
+        const s=sets[ex.id]; if(!s) return;
+        const rows=normSets(s).rows.filter(r=>r.kg!=null||r.reps!=null||isUniRow(r));
+        if(!rows.length) return;
+        exCount++;
+        const setsTxt=rows.map(r=>{
+          const kg=r.kg!=null?(r.kg<0?String(r.kg):fmt(r.kg)):'?';
+          return `${kg}\u00d7${fmtRowReps(r)}${r.warmup?' \u00b7A':''}`;
+        }).join('   ');
+        exRows+=`<div class="sc-ex"><div class="sc-exn">${escapeHtml(ex.name||'\u00dcbung')}</div><div class="sc-exs">${escapeHtml(setsTxt)}</div></div>`;
+      }
+    });
+  }
+  if(!exRows) exRows=`<div class="sc-ex"><div class="sc-exs" style="color:var(--muted)">Keine Detaildaten erfasst.</div></div>`;
+  const vol=unit?sessionVolume(iso,unit.id):{total:0};
+  const stats=[];
+  if(vol.total>0) stats.push(`<div class="sc-stat"><b>${fmt(Math.round(vol.total/100)/10)}<small> t</small></b><span>bewegt</span></div>`);
+  if(exCount>0) stats.push(`<div class="sc-stat"><b>${exCount}</b><span>\u00dcbung${exCount>1?'en':''}</span></div>`);
+  if(cardioCount>0) stats.push(`<div class="sc-stat"><b>${cardioCount}</b><span>Cardio</span></div>`);
+  const note=e.sessionNote?`<div class="sc-note">\u201e${escapeHtml(short(e.sessionNote.replace(/\n/g,' '),90))}\u201c</div>`:'';
+  return `
+    <div class="sc-top">
+      <div class="sc-brand"><span class="sc-dot"></span><span class="sc-brandtxt">TRAININGSZYKLUS</span></div>
+      <div class="sc-date">${escapeHtml(dateStr)}</div>
+    </div>
+    <div class="sc-unit"><span class="sc-tdot ${type}"></span><span class="sc-unittxt">${escapeHtml(unitName)}</span></div>
+    <div class="sc-exlist">${exRows}</div>
+    ${note}
+    ${stats.length?`<div class="sc-stats">${stats.join('')}</div>`:''}
+    <div class="sc-foot">gogadon.github.io</div>`;
+}
+async function shareSession(iso){
+  try{
+    const h2c=await ensureHtml2Canvas();
+    let host=document.getElementById('sharehost');
+    if(!host){ host=document.createElement('div'); host.id='sharehost'; document.body.appendChild(host); }
+    host.style.cssText='position:fixed;left:-9999px;top:0;width:380px;z-index:-1;';
+    host.innerHTML=`<div id="sharecardEl" class="sharecard">${buildShareCardHtml(iso)}</div>`;
+    const el=document.getElementById('sharecardEl');
+    const canvas=await h2c(el,{backgroundColor:'#0c0c0e',scale:2,logging:false});
+    host.innerHTML='';
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/png'));
+    if(!blob){ throw new Error('Bild konnte nicht erzeugt werden'); }
+    const file=new File([blob],`training-${iso}.png`,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Mein Training'});
+    } else {
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=`training-${iso}.png`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+  }catch(err){
+    if(err&&err.name==='AbortError') return; // Nutzer hat Teilen-Dialog abgebrochen
+    alert('Teilen hat nicht geklappt: '+(err&&err.message?err.message:'Unbekannter Fehler'));
+  }
+}
+
 function historyActivityHtml(){
   const N=42;
   const now=new Date(); now.setHours(0,0,0,0);
@@ -2731,6 +2859,7 @@ function historyActivityHtml(){
       <div class="hdate"><div class="d">${d.getDate()}</div><div class="m">${MONTHS[d.getMonth()]}</div><div class="hwd">${WD_SHORT[d.getDay()]}</div></div>
       <div class="tdot ${displayType}"></div>
       <div class="hunit">${escapeHtml(displayName)}${isToday?' &nbsp;<span class="htoday">HEUTE</span>':''}${insert?` <span style="font-size:10px;color:var(--push);font-weight:700;">EINSCHUB</span>`:''}${summaryHtml}</div>
+      ${(done&&!insert)?`<button class="hshare" onclick="shareSession('${iso}')" title="Als Bild teilen">\u2191</button>`:''}
       <div class="hcheck">\u2713</div>
     </div>`;
   }
