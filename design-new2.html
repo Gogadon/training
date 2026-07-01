@@ -426,11 +426,13 @@
   .sharecard{width:380px;box-sizing:border-box;padding:26px 24px 20px;background:linear-gradient(160deg,#16161b 0%,#0c0c0e 100%);
     font-family:'Sora',system-ui,sans-serif;color:var(--text);}
   .sharecard .sc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
-  .sharecard .sc-brand{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2.5px;color:var(--muted);font-weight:700;}
+  .sharecard .sc-brand{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:700;}
+  .sharecard .sc-brand .sc-brandtxt{font-size:11px;letter-spacing:2.5px;}
   .sharecard .sc-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
   .sharecard .sc-date{font-size:11px;color:var(--muted);}
   .sharecard .sc-unit{display:flex;align-items:center;gap:10px;font-family:'Anton',sans-serif;font-size:27px;
-    letter-spacing:.5px;text-transform:uppercase;margin-bottom:18px;line-height:1.1;}
+    margin-bottom:18px;line-height:1.1;}
+  .sharecard .sc-unit .sc-unittxt{letter-spacing:.5px;text-transform:uppercase;}
   .sharecard .sc-tdot{width:13px;height:13px;border-radius:50%;flex-shrink:0;}
   .sharecard .sc-tdot.push{background:var(--push);}.sharecard .sc-tdot.pull{background:var(--pull);}
   .sharecard .sc-tdot.legs{background:var(--legs);}.sharecard .sc-tdot.rest{background:var(--rest);}
@@ -2718,10 +2720,10 @@ function buildShareCardHtml(iso){
   const note=e.sessionNote?`<div class="sc-note">\u201e${escapeHtml(short(e.sessionNote.replace(/\n/g,' '),90))}\u201c</div>`:'';
   return `
     <div class="sc-top">
-      <div class="sc-brand"><span class="sc-dot"></span>TRAININGSZYKLUS</div>
+      <div class="sc-brand"><span class="sc-dot"></span><span class="sc-brandtxt">TRAININGSZYKLUS</span></div>
       <div class="sc-date">${escapeHtml(dateStr)}</div>
     </div>
-    <div class="sc-unit"><span class="sc-tdot ${type}"></span>${escapeHtml(unitName)}</div>
+    <div class="sc-unit"><span class="sc-tdot ${type}"></span><span class="sc-unittxt">${escapeHtml(unitName)}</span></div>
     <div class="sc-exlist">${exRows}</div>
     ${note}
     ${stats.length?`<div class="sc-stats">${stats.join('')}</div>`:''}
