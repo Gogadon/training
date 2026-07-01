@@ -251,8 +251,8 @@
 
   /* exercises: define (edit mode) */
   .exdef{margin:10px 0 4px;}
-  .exdef .exrow{display:flex;gap:7px;align-items:center;margin-bottom:7px;}
-  .exdef .exrow input{flex:1;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+  .exdef .exrow{display:flex;gap:6px;align-items:center;margin-bottom:7px;}
+  .exdef .exrow input{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);color:var(--text);
     border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13.5px;outline:none;}
   .exdef .exrow input:focus{border-color:var(--accent);}
   .exdef .ex-add{width:100%;background:transparent;border:1px dashed var(--line);color:var(--accent);
@@ -390,6 +390,7 @@
     border-radius:9px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .iconbtn:active{background:var(--line);}
   .iconbtn.del{color:var(--push);}
+  .iconbtn.mv{width:26px;height:34px;font-size:10px;line-height:1;color:var(--accent);}
   .arrows{display:flex;flex-direction:column;gap:3px;}
   .arrows .iconbtn{width:30px;height:22px;font-size:11px;}
   .addbtn{margin-top:10px;width:100%;background:transparent;border:1.5px dashed var(--line);
@@ -926,7 +927,8 @@ function addExerciseToUnit(unitId){
 function renameExerciseInUnit(unitId,exId,name){
   const u=unitById(unitId); if(!u) return;
   u.exercises=(u.exercises||[]).map(e=>e.id===exId?{...e,name}:e);
-  if(u.cardio) recordCardioName(exId,name);
+  const ex=(u.exercises||[]).find(e=>e.id===exId);
+  if(u.cardio || (ex&&ex.cardio)) recordCardioName(exId,name);
   save();
 }
 function delExerciseFromUnit(unitId,exId){
@@ -951,6 +953,8 @@ function cardioDefHtmlUnit(unitId){
   const rows=acts.map(a=>`
     <div class="exrow">
       <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
+      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
+      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
       <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
     </div>`).join('');
   return `<div class="exdef">
@@ -1340,17 +1344,23 @@ const DEFAULT_CARDIO=[
 function ensureCardioUnits(){
   if(!state.cardioNames) state.cardioNames={};
   let changed=false;
-  Object.values(state.units||{}).forEach(u=>{
-    if(u.cardio===undefined && u.type==='rest'){
-      u.cardio=true;
-      if(!Array.isArray(u.exercises)||u.exercises.length===0){
-        u.exercises=DEFAULT_CARDIO.map(c=>({id:c.id, name:c.name}));
+  // Erst-Einrichtung NUR EINMAL: bestehende Rest-Einheiten zu Cardio machen.
+  // Danach respektieren wir die Wahl des Nutzers (Flag bleibt aus, wenn er es ausschaltet).
+  if(!state.cardioInit){
+    Object.values(state.units||{}).forEach(u=>{
+      if(u.cardio===undefined && u.type==='rest'){
+        u.cardio=true;
+        if(!Array.isArray(u.exercises)||u.exercises.length===0){
+          u.exercises=DEFAULT_CARDIO.map(c=>({id:c.id, name:c.name}));
+        }
       }
-      changed=true;
-    }
-    // Namen aller Cardio-Aktivitäten für den Verlauf merken (auch nach Löschen)
-    if(u.cardio && Array.isArray(u.exercises)){
-      u.exercises.forEach(a=>{ if(a.name&&a.name.trim()) state.cardioNames[a.id]=a.name.trim(); });
+    });
+    state.cardioInit=true; changed=true;
+  }
+  // Namen aller Cardio-Aktivitäten/-Übungen für den Verlauf merken (auch nach Löschen)
+  Object.values(state.units||{}).forEach(u=>{
+    if(Array.isArray(u.exercises)){
+      u.exercises.forEach(a=>{ if((u.cardio||a.cardio)&&a.name&&a.name.trim()) state.cardioNames[a.id]=a.name.trim(); });
     }
   });
   DEFAULT_CARDIO.forEach(c=>{ if(!state.cardioNames[c.id]) state.cardioNames[c.id]=c.name; });
@@ -2016,7 +2026,8 @@ function renderToday(){
   const isDone=!!logEntry.done;
   const sessionNote=logEntry.sessionNote||'';
   const isCardio=!!(todayUnitObj&&todayUnitObj.cardio);
-  const isRest=tType==='rest'&&!isCardio;
+  const exForToday=todayUnitObj?getExercisesByUnitId(todayUnitId_):[];
+  const isRest=tType==='rest'&&!isCardio&&exForToday.length===0;
   const isWeek=plan.mode==='week';
   const isFree=!todayInsert&&!todayUnitObj; // Wochenplan: Tag ohne Einheit = frei
 
@@ -2122,6 +2133,22 @@ function exDefHtmlUnit(unitId){
   const u=unitById(unitId); if(!u) return '';
   const ex=u.exercises||[];
   const rows=ex.map(e=>{
+    const isCardioEx=!!e.cardio;
+    if(isCardioEx){
+      return `<div class="exrow-wrap">
+        <div class="exrow">
+          <input value="${escapeAttr(e.name)}" placeholder="Cardio-Name (z.B. Laufband Aufw\u00e4rmen)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
+          <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
+          <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',1)" title="Runter">\u25bc</button>
+          <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
+        </div>
+        <div class="prog-rule" style="margin-top:6px;">
+          <span class="prog-label">Cardio-\u00dcbung:</span>
+          <button class="prog-type-btn on" onclick="toggleExCardio('${unitId}','${e.id}')">An (Zeit/Puls)</button>
+        </div>
+        <div class="hint" style="margin-top:4px;">Felder: Dauer, \u00d8-Puls, Max-Puls \u00b7 z\u00e4hlt nicht ins Volumen.</div>
+      </div>`;
+    }
     const prog=e.prog||{type:'off'};
     const type=prog.type||'off';
     const typeLabels={off:'Aus',double:'Doppel',strength:'Kraft',technique:'Reha'};
@@ -2151,6 +2178,8 @@ function exDefHtmlUnit(unitId){
     return `<div class="exrow-wrap">
       <div class="exrow">
         <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',1)" title="Runter">\u25bc</button>
         <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
       </div>
       <div class="prog-rule">
@@ -2163,6 +2192,10 @@ function exDefHtmlUnit(unitId){
         <button class="prog-type-btn${e.uni?' on':''}" onclick="toggleExUni('${unitId}','${e.id}')">${e.uni?'An (L/R getrennt)':'Aus'}</button>
         <span class="prog-label" style="margin-left:8px;">Assistiert:</span>
         <button class="prog-type-btn${e.assist?' on':''}" onclick="toggleExAssist('${unitId}','${e.id}')">${e.assist?'An (\u2212/+ )':'Aus'}</button>
+      </div>
+      <div class="prog-rule" style="margin-top:6px;">
+        <span class="prog-label">Cardio-\u00dcbung:</span>
+        <button class="prog-type-btn" onclick="toggleExCardio('${unitId}','${e.id}')">Aus</button>
       </div>
     </div>`;
   }).join('');
@@ -2251,6 +2284,19 @@ function toggleExUni(unitId,exId){
   if(ex.uni) delete ex.uni; else ex.uni=true;
   save(); render();
 }
+/* Cardio-Flag pro Übung umschalten (Übung wird zu Zeit/Puls statt Sätze) */
+function toggleExCardio(unitId,exId){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  if(ex.cardio){ delete ex.cardio; }
+  else {
+    ex.cardio=true;
+    // Kraft-spezifische Flags entfernen, da bei Cardio sinnlos
+    delete ex.prog; delete ex.uni; delete ex.assist;
+    recordCardioName(exId, ex.name);
+  }
+  save(); render();
+}
 /* Assistiert-Flag pro Übung umschalten (Gewicht hilft -> negativ) */
 function toggleExAssist(unitId,exId){
   const u=unitById(unitId); if(!u) return;
@@ -2294,6 +2340,37 @@ function sessionExercisesHtml(idx,unitId){
   }
   const unitAttr=escapeAttr(unitId);
   const cards=ex.map(e=>{
+    // Cardio-Übung: Zeit/Puls statt Sätze (Daten in entry.cardio[e.id])
+    if(e.cardio){
+      const le=state.log[iso]||{};
+      const cd=(le.cardio&&le.cardio[e.id])||{};
+      const cchecked=!!cd.done;
+      const copen=isCardioOpen(e.id,cchecked);
+      const cbody=`<div class="cardio-fields">
+          <div class="cfield"><label>DAUER (min)</label>
+            <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
+              value="${cd.min!=null?cd.min:''}" oninput="saveCardio('${e.id}','min',this.value)"></div>
+        </div>
+        <div class="pulse-row">
+          <div class="cfield"><label>\u2665 \u00d8-PULS (bpm)</label>
+            <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
+              value="${cd.avgPulse!=null?cd.avgPulse:''}" oninput="saveCardio('${e.id}','avgPulse',this.value)"></div>
+          <div class="cfield"><label>\u2665 MAX-PULS (bpm)</label>
+            <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
+              value="${cd.maxPulse!=null?cd.maxPulse:''}" oninput="saveCardio('${e.id}','maxPulse',this.value)"></div>
+        </div>`;
+      return `<div class="ex-card${cchecked?' checked':''}">
+        <div class="ex-head" onclick="toggleCardioOpen('${e.id}')">
+          <button class="ex-check ${cchecked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${e.id}')">\u2713</button>
+          <div class="ex-headtxt">
+            <div class="ex-name">\ud83c\udfc3 ${escapeHtml(e.name||'Cardio')}</div>
+            ${cchecked?`<div class="ex-sub">${escapeHtml(cardioSummary(cd))}</div>`:''}
+          </div>
+          ${!cchecked?`<span class="ex-chev">${copen?'\u2303':'\u2304'}</span>`:''}
+        </div>
+        ${(copen&&!cchecked)?`<div class="ex-body">${cbody}</div>`:''}
+      </div>`;
+    }
     const entry=getExEntry(iso,unitId,e.id);
     const rows=entry.rows;
     const checked=!!entry.checked;
@@ -2626,26 +2703,28 @@ function historyActivityHtml(){
     if(done){
       if(insert){
         // Einschub: nur Name, keine Session-Daten
-      } else if(e.cardio && Object.keys(e.cardio).some(k=>e.cardio[k]&&e.cardio[k].done)){
-        const cu=unitById(e.unitId||info.unitId);
-        const acts=(cu&&Array.isArray(cu.exercises))?cu.exercises:[];
-        const nameFor=key=>{ const a=acts.find(x=>x.id===key); if(a&&a.name) return a.name; if(state.cardioNames&&state.cardioNames[key]) return state.cardioNames[key]; const def=DEFAULT_CARDIO.find(x=>x.id===key); return def?def.name:key; };
-        const parts=Object.keys(e.cardio).filter(key=>e.cardio[key]&&e.cardio[key].done).map(key=>{
-          const d=e.cardio[key]; let s=nameFor(key);
-          if(d.min) s+=` ${d.min}min`;
-          if(d.avgPulse) s+=` \u00d8${d.avgPulse}`;
-          return s;
-        });
-        if(parts.length) summaryHtml=`<div class="hcardio">${escapeHtml(parts.join(' \u00b7 '))}</div>`;
       } else {
+        const segs=[];
+        // Kraft-Übungen (Sätze)
         const sets=e.sets&&e.sets[info.unitId];
         if(sets){
           const n=Object.keys(sets).filter(exId=>exCountsOnDay(sets,exId)).length;
-          if(n) summaryHtml=`<div class="hcardio">${n} \u00dcbung${n>1?'en':''} erfasst${e.sessionNote?' \u00b7 '+escapeHtml(short(e.sessionNote.replace(/\n/g,' '),34)):''}</div>`;
+          if(n) segs.push(`${n} \u00dcbung${n>1?'en':''}`);
         }
-        if(!summaryHtml&&e.sessionNote){
-          summaryHtml=`<div class="hcardio">${escapeHtml(short(e.sessionNote.replace(/\n/g,' \u00b7 '),60))}</div>`;
+        // Cardio (eigene Cardio-Einheit ODER Cardio-Übungen in einer Kraft-Einheit)
+        if(e.cardio && Object.keys(e.cardio).some(k=>e.cardio[k]&&e.cardio[k].done)){
+          const cu=unitById(e.unitId||info.unitId);
+          const acts=(cu&&Array.isArray(cu.exercises))?cu.exercises:[];
+          const nameFor=key=>{ const a=acts.find(x=>x.id===key); if(a&&a.name) return a.name; if(state.cardioNames&&state.cardioNames[key]) return state.cardioNames[key]; const def=DEFAULT_CARDIO.find(x=>x.id===key); return def?def.name:key; };
+          Object.keys(e.cardio).filter(key=>e.cardio[key]&&e.cardio[key].done).forEach(key=>{
+            const d=e.cardio[key]; let s=nameFor(key);
+            if(d.min) s+=` ${d.min}min`;
+            if(d.avgPulse) s+=` \u00d8${d.avgPulse}`;
+            segs.push(s);
+          });
         }
+        if(e.sessionNote) segs.push(short(e.sessionNote.replace(/\n/g,' '),30));
+        if(segs.length) summaryHtml=`<div class="hcardio">${escapeHtml(segs.join(' \u00b7 '))}</div>`;
       }
     }
     rows+=`<div class="hrow ${done?'done':''}">
@@ -3350,6 +3429,15 @@ function move(i,dir){
   if(j<0||j>=c.length) return;
   [c[i],c[j]]=[c[j],c[i]];
   if(planOpenIdx===i) planOpenIdx=j; else if(planOpenIdx===j) planOpenIdx=i;
+  save(); render();
+}
+/* Übung innerhalb einer Einheit hoch/runter verschieben */
+function moveExercise(unitId,exId,dir){
+  const u=unitById(unitId); if(!u||!Array.isArray(u.exercises)) return;
+  const i=u.exercises.findIndex(e=>e.id===exId); if(i<0) return;
+  const j=i+dir;
+  if(j<0||j>=u.exercises.length) return;
+  [u.exercises[i],u.exercises[j]]=[u.exercises[j],u.exercises[i]];
   save(); render();
 }
 function toggleNote(i){ if(editing) return; openNoteIdx=(openNoteIdx===i)?-1:i; render(); }
