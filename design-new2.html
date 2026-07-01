@@ -1047,9 +1047,9 @@ function bestBeforeToday(unitId,exId){
   const today=todayISO();
   let maxKg=null, repsAtMax=null;
   Object.keys(state.log).filter(d=>d<today).forEach(d=>{
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
-    if(s&&s[exId]){
-      normSets(s[exId]).rows.forEach(r=>{
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitId];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      normSets(unitSets[exId]).rows.forEach(r=>{
         if(r.warmup||r.kg==null) return;
         const mr=rowMetricReps(r); // einarmig: schwächere Seite
         if(maxKg==null||r.kg>maxKg){ maxKg=r.kg; repsAtMax=(mr!=null?mr:null); }
@@ -1174,10 +1174,9 @@ function lastSessionFor(unitName,exId){
   const today=todayISO();
   const dates=Object.keys(state.log).filter(d=>d<today).sort().reverse();
   for(const d of dates){
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
-    if(s&&s[exId]){
-      const e=normSets(s[exId]);
-      if(e.rows.some(r=>r.kg!=null)) return {date:d, rows:e.rows};
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      return {date:d, rows:normSets(unitSets[exId]).rows};
     }
   }
   return null;
@@ -1188,10 +1187,10 @@ function recentSessionsFor(unitName,exId,n){
   const dates=Object.keys(state.log).filter(d=>d<today).sort().reverse();
   const out=[];
   for(const d of dates){
-    const s=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
-    if(s&&s[exId]){
-      const e=normSets(s[exId]);
-      if(e.rows.some(r=>r.kg!=null)){ out.push({date:d, rows:e.rows}); if(out.length>=(n||4)) break; }
+    const unitSets=state.log[d]&&state.log[d].sets&&state.log[d].sets[unitName];
+    if(unitSets&&exCountsOnDay(unitSets,exId)){
+      out.push({date:d, rows:normSets(unitSets[exId]).rows});
+      if(out.length>=(n||4)) break;
     }
   }
   return out;
