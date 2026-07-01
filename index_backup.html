@@ -926,12 +926,39 @@ function addExerciseToUnit(unitId){
 function renameExerciseInUnit(unitId,exId,name){
   const u=unitById(unitId); if(!u) return;
   u.exercises=(u.exercises||[]).map(e=>e.id===exId?{...e,name}:e);
+  if(u.cardio) recordCardioName(exId,name);
   save();
 }
 function delExerciseFromUnit(unitId,exId){
   const u=unitById(unitId); if(!u) return;
+  if(u.cardio && cardioHasData(exId)){
+    if(!confirm('Diese Cardio-Aktivit\u00e4t hat bereits Eintr\u00e4ge.\nWirklich entfernen? Die alten Eintr\u00e4ge bleiben im Verlauf erhalten.')) return;
+  }
   u.exercises=(u.exercises||[]).filter(e=>e.id!==exId);
   save(); render();
+}
+/* Cardio-Flag einer Einheit umschalten */
+function toggleUnitCardio(unitId){
+  const u=unitById(unitId); if(!u) return;
+  if(u.cardio){ delete u.cardio; }
+  else { u.cardio=true; if(!Array.isArray(u.exercises)) u.exercises=[]; }
+  save(); render();
+}
+/* Verwaltung der Cardio-Aktivitäten einer Einheit (nur Name, feste 3 Felder) */
+function cardioDefHtmlUnit(unitId){
+  const u=unitById(unitId); if(!u) return '';
+  const acts=u.exercises||[];
+  const rows=acts.map(a=>`
+    <div class="exrow">
+      <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
+      <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+    </div>`).join('');
+  return `<div class="exdef">
+    <div class="exlabel">Cardio-Aktivit\u00e4ten f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
+    <div class="hint" style="margin-bottom:8px;">Jede Aktivit\u00e4t hat dieselben Felder: Dauer, \u00d8-Puls, Max-Puls. Nur der Name ist frei w\u00e4hlbar.</div>
+    ${rows||'<div class="ex-empty" style="padding:14px;">Noch keine Aktivit\u00e4t. F\u00fcge unten z.B. \u201eLaufband\u201c oder \u201eStairmaster\u201c hinzu.</div>'}
+    <button class="ex-add" onclick="addExerciseToUnit('${unitId}')">+ Cardio-Aktivit\u00e4t hinzuf\u00fcgen</button>
+  </div>`;
 }
 
 /* --- Session-Sätze: state.log[iso].sets[unitId][exId] = {rows:[{kg,reps}],checked} --- */
@@ -1237,6 +1264,10 @@ async function storageSet(key,value){
   mem[key]=value;
 }
 
+function emptyState(){
+  const p={id:makeId(), name:'Mein Plan', mode:'cycle', cycle:[], week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''}, anchorISO:todayISO(), anchorDay:1};
+  return {units:{}, plans:[p], activePlanId:p.id, log:{}, weight:[], inserts:{}};
+}
 function migrateOldFormat(old){
   const units={}; const nameToId={};
   (old.plans||[]).forEach(p=>{
@@ -1278,10 +1309,6 @@ function migrateOldFormat(old){
     inserts:old.inserts||{},
     lastBackup:old.lastBackup||null};
 }
-function emptyState(){
-  const p={id:makeId(), name:'Mein Plan', mode:'cycle', cycle:[], week:{0:'',1:'',2:'',3:'',4:'',5:'',6:''}, anchorISO:todayISO(), anchorDay:1};
-  return {units:{}, plans:[p], activePlanId:p.id, log:{}, weight:[], inserts:{}};
-}
 async function load(){
   let raw=null, migratedNow=false;
   try{ const v=await storageGet(STORE_KEY); if(v){ raw=v; state=JSON.parse(v); } }catch(e){}
@@ -1300,6 +1327,42 @@ async function load(){
     if(!p.week||typeof p.week!=='object') p.week={0:'',1:'',2:'',3:'',4:'',5:'',6:''};
   });
   if(migratedNow){ try{ await save(); }catch(e){} }
+  ensureCardioUnits();
+}
+/* Einmalige Umstellung: bisherige Rest-Einheiten zu Cardio-Einheiten machen
+   und mit den 3 Standard-Aktivitäten (lauf1/bike/lauf2) vorbefüllen, damit
+   bestehende Cardio-Daten (entry.cardio[key]) erhalten bleiben. */
+const DEFAULT_CARDIO=[
+  {id:'lauf1', name:'Laufband 1'},
+  {id:'bike',  name:'Fahrrad'},
+  {id:'lauf2', name:'Laufband 2'},
+];
+function ensureCardioUnits(){
+  if(!state.cardioNames) state.cardioNames={};
+  let changed=false;
+  Object.values(state.units||{}).forEach(u=>{
+    if(u.cardio===undefined && u.type==='rest'){
+      u.cardio=true;
+      if(!Array.isArray(u.exercises)||u.exercises.length===0){
+        u.exercises=DEFAULT_CARDIO.map(c=>({id:c.id, name:c.name}));
+      }
+      changed=true;
+    }
+    // Namen aller Cardio-Aktivitäten für den Verlauf merken (auch nach Löschen)
+    if(u.cardio && Array.isArray(u.exercises)){
+      u.exercises.forEach(a=>{ if(a.name&&a.name.trim()) state.cardioNames[a.id]=a.name.trim(); });
+    }
+  });
+  DEFAULT_CARDIO.forEach(c=>{ if(!state.cardioNames[c.id]) state.cardioNames[c.id]=c.name; });
+  if(changed){ try{ save(); }catch(e){} }
+}
+function recordCardioName(id,name){
+  if(!state.cardioNames) state.cardioNames={};
+  if(name&&name.trim()) state.cardioNames[id]=name.trim();
+}
+/* Hat eine Cardio-Aktivität bereits erfasste Einträge? */
+function cardioHasData(exId){
+  return Object.keys(state.log||{}).some(d=>{ const c=state.log[d].cardio; return c&&c[exId]&&(c[exId].done||c[exId].min!=null||c[exId].avgPulse!=null||c[exId].maxPulse!=null); });
 }
 async function save(){ try{ await storageSet(STORE_KEY,JSON.stringify(state)); }catch(e){} }
 
@@ -1415,18 +1478,22 @@ function renderPlan(){
   // --- Einheiten-Bibliothek ---
   const libCards=allUnits().map(u=>{
     const open=libOpenId===u.id;
-    const isRestU=u.type==='rest';
+    const isCardioU=!!u.cardio;
     const exCount=getExercisesByUnitId(u.id).length;
     const usage=unitUsage(u.id);
     return `<div class="pcard">
       <div class="pcard-head ${open?'open':''}" onclick="toggleLibCard('${u.id}')">
         <button class="tdot-btn ${u.type}" onclick="event.stopPropagation();cycleTypeUnit('${u.id}')" title="Farbe"></button>
         <input class="pname-inp" value="${escapeAttr(u.name)}" onclick="event.stopPropagation()" oninput="renameUnit('${u.id}',this.value)" placeholder="Einheit-Name">
-        ${!isRestU?`<span class="pexcount">${exCount} \u00dcb.</span>`:'<span class="pexcount rest">Cardio</span>'}
+        ${isCardioU?'<span class="pexcount rest">Cardio</span>':`<span class="pexcount">${exCount} \u00dcb.</span>`}
         <span class="pchev">${open?'\u2303':'\u2304'}</span>
       </div>
       ${open?`<div class="pcard-body">
-        ${isRestU?`<div class="ex-empty">Active Rest \u2013 Cardio tr\u00e4gst du im <b>Heute</b>-Tab ein. (Eine Einheit gilt als Rest, wenn ihre Farbe grau ist.)</div>`:exDefHtmlUnit(u.id)}
+        <div class="prog-rule" style="margin-bottom:10px;">
+          <span class="prog-label">Cardio-Einheit:</span>
+          <button class="prog-type-btn${isCardioU?' on':''}" onclick="toggleUnitCardio('${u.id}')">${isCardioU?'An':'Aus'}</button>
+        </div>
+        ${isCardioU?cardioDefHtmlUnit(u.id):exDefHtmlUnit(u.id)}
         <div class="pcard-actions">
           <span class="lib-usage">${usage.length?'verwendet in: '+escapeHtml(usage.join(', ')):'noch nicht zugewiesen'}</span>
           <button class="parrow del" onclick="event.stopPropagation();delUnitFromLibrary('${u.id}')">\u2715 l\u00f6schen</button>
@@ -1948,7 +2015,8 @@ function renderToday(){
   const logEntry=state.log[iso]||{};
   const isDone=!!logEntry.done;
   const sessionNote=logEntry.sessionNote||'';
-  const isRest=tType==='rest';
+  const isCardio=!!(todayUnitObj&&todayUnitObj.cardio);
+  const isRest=tType==='rest'&&!isCardio;
   const isWeek=plan.mode==='week';
   const isFree=!todayInsert&&!todayUnitObj; // Wochenplan: Tag ohne Einheit = frei
 
@@ -1980,10 +2048,16 @@ function renderToday(){
     sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist eine Sonder-Einheit \u2013 frei trainieren, kein Log n\u00f6tig.</div></div>`;
   } else if(isFree){
     sessionHtml=`<div class="sessionwrap"><div class="ses-empty">Heute ist ein freier Tag \u2013 keine Einheit zugewiesen. Genie\u00df die Pause! \ud83d\ude0c</div></div>`;
+  } else if(isCardio){
+    sessionHtml=`<div class="sessionwrap">
+      <div class="ses-head"><span>\ud83c\udfc3 Cardio \u00b7 ${escapeHtml(short(todayUnit,20))}</span>
+        <button class="ses-addbtn" onclick="gotoPlanUnitId('${todayUnitId_}')">+ Aktivit\u00e4t</button></div>
+      ${cardioLogHtml(logEntry, todayUnitObj)}
+    </div>`;
   } else if(isRest){
     sessionHtml=`<div class="sessionwrap">
-      <div class="ses-head"><span>\ud83d\udeb4 Cardio heute</span></div>
-      ${cardioLogHtml(logEntry)}
+      <div class="ses-head"><span>\ud83d\ude0c Erholungstag</span></div>
+      <div class="ses-empty">Heute ist ein reiner Erholungstag \u2013 genie\u00df die Pause!</div>
     </div>`;
   } else {
     sessionHtml=`<div class="sessionwrap">
@@ -2329,11 +2403,7 @@ function sessionExercisesHtml(idx,unitId){
 }
 
 /* ============ CARDIO LOG ============ */
-const CARDIO_UNITS=[
-  {key:'lauf1', name:'Laufband 1', icon:'\ud83c\udfc3'},
-  {key:'bike',  name:'Fahrrad',    icon:'\ud83d\udeb4'},
-  {key:'lauf2', name:'Laufband 2', icon:'\ud83c\udfc3'},
-];
+/* CARDIO_UNITS entfernt - Aktivitaeten kommen aus unit.exercises (DEFAULT_CARDIO + ensureCardioUnits). */
 
 function cardioSummary(d){
   const parts=[];
@@ -2342,30 +2412,36 @@ function cardioSummary(d){
   else if(d.maxPulse!=null) parts.push(`max ${d.maxPulse} bpm`);
   return parts.length?parts.join(' \u00b7 '):'keine Werte';
 }
-function cardioLogHtml(entry){
+function cardioLogHtml(entry, unit){
   const cd=entry.cardio||{};
-  const units=CARDIO_UNITS.map(u=>{
-    const d=cd[u.key]||{};
+  const acts=(unit&&Array.isArray(unit.exercises))?unit.exercises:[];
+  if(!acts.length){
+    return `<div class="ex-empty">Noch keine Cardio-Aktivit\u00e4ten f\u00fcr diese Einheit.<br>
+      Lege sie im <b>Plan</b>-Tab bei dieser Einheit an.</div>`;
+  }
+  const units=acts.map(act=>{
+    const key=act.id;
+    const d=cd[key]||{};
     const checked=!!d.done;
-    const open=isCardioOpen(u.key,checked);
+    const open=isCardioOpen(key,checked);
     const body=`<div class="cardio-fields">
         <div class="cfield"><label>DAUER (min)</label>
           <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
-            value="${d.min!=null?d.min:''}" oninput="saveCardio('${u.key}','min',this.value)"></div>
+            value="${d.min!=null?d.min:''}" oninput="saveCardio('${key}','min',this.value)"></div>
       </div>
       <div class="pulse-row">
         <div class="cfield"><label>\u2665 \u00d8-PULS (bpm)</label>
           <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
-            value="${d.avgPulse!=null?d.avgPulse:''}" oninput="saveCardio('${u.key}','avgPulse',this.value)"></div>
+            value="${d.avgPulse!=null?d.avgPulse:''}" oninput="saveCardio('${key}','avgPulse',this.value)"></div>
         <div class="cfield"><label>\u2665 MAX-PULS (bpm)</label>
           <input type="number" inputmode="numeric" min="0" max="250" placeholder="\u2013"
-            value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${u.key}','maxPulse',this.value)"></div>
+            value="${d.maxPulse!=null?d.maxPulse:''}" oninput="saveCardio('${key}','maxPulse',this.value)"></div>
       </div>`;
     return `<div class="ex-card${checked?' checked':''}">
-      <div class="ex-head" onclick="toggleCardioOpen('${u.key}')">
-        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${u.key}')">\u2713</button>
+      <div class="ex-head" onclick="toggleCardioOpen('${key}')">
+        <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${key}')">\u2713</button>
         <div class="ex-headtxt">
-          <div class="ex-name">${u.icon} ${u.name}</div>
+          <div class="ex-name">\ud83c\udfc3 ${escapeHtml(act.name||'Cardio')}</div>
           ${checked?`<div class="ex-sub">${escapeHtml(cardioSummary(d))}</div>`:''}
         </div>
         ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
@@ -2550,9 +2626,12 @@ function historyActivityHtml(){
     if(done){
       if(insert){
         // Einschub: nur Name, keine Session-Daten
-      } else if(displayType==='rest'&&e.cardio){
-        const parts=CARDIO_UNITS.filter(u=>e.cardio[u.key]&&e.cardio[u.key].done).map(u=>{
-          const d=e.cardio[u.key]; let s=u.name;
+      } else if(e.cardio && Object.keys(e.cardio).some(k=>e.cardio[k]&&e.cardio[k].done)){
+        const cu=unitById(e.unitId||info.unitId);
+        const acts=(cu&&Array.isArray(cu.exercises))?cu.exercises:[];
+        const nameFor=key=>{ const a=acts.find(x=>x.id===key); if(a&&a.name) return a.name; if(state.cardioNames&&state.cardioNames[key]) return state.cardioNames[key]; const def=DEFAULT_CARDIO.find(x=>x.id===key); return def?def.name:key; };
+        const parts=Object.keys(e.cardio).filter(key=>e.cardio[key]&&e.cardio[key].done).map(key=>{
+          const d=e.cardio[key]; let s=nameFor(key);
           if(d.min) s+=` ${d.min}min`;
           if(d.avgPulse) s+=` \u00d8${d.avgPulse}`;
           return s;
@@ -3365,4 +3444,4 @@ function short(s,n){ n=n||16; return s.length>n?s.slice(0,n-1)+'\u2026':s; }
 })();
 </script>
 </body>
-  </html>
+</html>
