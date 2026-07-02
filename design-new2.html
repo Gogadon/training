@@ -274,6 +274,9 @@
     border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13px;outline:none;}
   .alt-row input:focus{border-color:var(--accent);}
   .alt-empty{font-size:12px;color:var(--muted);padding:8px 2px 10px;}
+  .alt-item{padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line);}
+  .alt-item:last-of-type{border-bottom:none;margin-bottom:6px;padding-bottom:2px;}
+  .alt-settings{margin-top:7px;padding-left:2px;}
   .alt-add{width:100%;background:transparent;border:1px dashed var(--line);color:var(--accent);
     padding:9px;border-radius:9px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px;}
   .alt-add:active{background:var(--surface);}
@@ -2160,6 +2163,45 @@ function renderToday(){
 
 /* Übungs-Editor (operiert auf der Unit-Bibliothek) */
 /* Aufklappbarer "Alternativen"-Bereich einer Übung (dezent, standardmäßig zu) */
+/* Wiederverwendbare Kraft-Einstellungen (Progression + Einarmig + Assistiert) – für Übungen UND Alternativen */
+function exStrengthControlsHtml(unitId,e){
+  const prog=e.prog||{type:'off'};
+  const type=prog.type||'off';
+  const typeLabels={off:'Aus',double:'Doppel',strength:'Kraft',technique:'Reha'};
+  const typeBtns=['off','double','strength','technique'].map(t=>
+    `<button class="prog-type-btn${type===t?' on':''}" onclick="setExProg('${unitId}','${e.id}','${t}')">${typeLabels[t]}</button>`
+  ).join('');
+  let paramHtml='';
+  if(type==='double'){
+    const p={...PROG_DEFAULTS.double,...prog};
+    paramHtml=`<div class="prog-params">
+      <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
+      <label>Wdh min<input type="number" min="1" max="30" value="${p.repMin}" oninput="setExProgParam('${unitId}','${e.id}','repMin',this.value)"></label>
+      <label>Wdh max<input type="number" min="1" max="30" value="${p.repMax}" oninput="setExProgParam('${unitId}','${e.id}','repMax',this.value)"></label>
+      <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
+    </div>`;
+  } else if(type==='strength'){
+    const p={...PROG_DEFAULTS.strength,...prog};
+    paramHtml=`<div class="prog-params">
+      <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
+      <label>Ziel-Wdh<input type="number" min="1" max="30" value="${p.reps}" oninput="setExProgParam('${unitId}','${e.id}','reps',this.value)"></label>
+      <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
+    </div>`;
+  } else if(type==='technique'){
+    paramHtml=`<div class="prog-params technique-hint">Kein Gewichtsvorschlag \u2013 Fokus auf saubere Ausf\u00fchrung.</div>`;
+  }
+  return `<div class="prog-rule">
+      <span class="prog-label">Progression:</span>
+      <div class="prog-type-btns">${typeBtns}</div>
+    </div>
+    ${paramHtml}
+    <div class="prog-rule" style="margin-top:6px;">
+      <span class="prog-label">Einarmig:</span>
+      <button class="prog-type-btn${e.uni?' on':''}" onclick="toggleExUni('${unitId}','${e.id}')">${e.uni?'An (L/R getrennt)':'Aus'}</button>
+      <span class="prog-label" style="margin-left:8px;">Assistiert:</span>
+      <button class="prog-type-btn${e.assist?' on':''}" onclick="toggleExAssist('${unitId}','${e.id}')">${e.assist?'An (\u2212/+ )':'Aus'}</button>
+    </div>`;
+}
 function altSectionHtml(unitId,e){
   const alts=Array.isArray(e.alts)?e.alts:[];
   const open=altEditId===e.id;
@@ -2170,14 +2212,18 @@ function altSectionHtml(unitId,e){
   </div>`;
   if(!open) return `<div class="alt-box">${head}</div>`;
   const ph=e.cardio?'Cardio-Alternative (z.B. Fahrrad)':'Alternative (z.B. Klimmz\u00fcge)';
+  const isCardioParent=!!e.cardio;
   const rows=alts.map(a=>`
-    <div class="alt-row">
-      <input value="${escapeAttr(a.name)}" placeholder="${ph}" oninput="renameAlt('${unitId}','${e.id}','${a.id}',this.value)">
-      <button class="iconbtn del" onclick="delAltFromExercise('${unitId}','${e.id}','${a.id}')">\u2715</button>
+    <div class="alt-item">
+      <div class="alt-row">
+        <input value="${escapeAttr(a.name)}" placeholder="${ph}" oninput="renameAlt('${unitId}','${e.id}','${a.id}',this.value)">
+        <button class="iconbtn del" onclick="delAltFromExercise('${unitId}','${e.id}','${a.id}')">\u2715</button>
+      </div>
+      ${isCardioParent?'':`<div class="alt-settings">${exStrengthControlsHtml(unitId,a)}</div>`}
     </div>`).join('');
   return `<div class="alt-box open">
     ${head}
-    <div class="alt-hint">Ausweich-\u00dcbungen mit <b>eigener Historie</b>. Im Heute-Tab per \u21bb w\u00e4hlbar, wenn z.B. ein Ger\u00e4t belegt ist.</div>
+    <div class="alt-hint">Ausweich-\u00dcbungen mit <b>eigener Historie</b> und <b>eigenen Einstellungen</b>. Im Heute-Tab per \u21bb w\u00e4hlbar.</div>
     ${rows||'<div class="alt-empty">Noch keine Alternative hinterlegt.</div>'}
     <button class="alt-add" onclick="addAltToExercise('${unitId}','${e.id}')">+ Alternative hinzuf\u00fcgen</button>
   </div>`;
@@ -2203,32 +2249,6 @@ function exDefHtmlUnit(unitId){
         ${altSectionHtml(unitId,e)}
       </div>`;
     }
-    const prog=e.prog||{type:'off'};
-    const type=prog.type||'off';
-    const typeLabels={off:'Aus',double:'Doppel',strength:'Kraft',technique:'Reha'};
-    const typeBtns=['off','double','strength','technique'].map(t=>
-      `<button class="prog-type-btn${type===t?' on':''}" onclick="setExProg('${unitId}','${e.id}','${t}')">${typeLabels[t]}</button>`
-    ).join('');
-    // Parameter-Felder je nach Typ
-    let paramHtml='';
-    if(type==='double'){
-      const p={...PROG_DEFAULTS.double,...prog};
-      paramHtml=`<div class="prog-params">
-        <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
-        <label>Wdh min<input type="number" min="1" max="30" value="${p.repMin}" oninput="setExProgParam('${unitId}','${e.id}','repMin',this.value)"></label>
-        <label>Wdh max<input type="number" min="1" max="30" value="${p.repMax}" oninput="setExProgParam('${unitId}','${e.id}','repMax',this.value)"></label>
-        <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
-      </div>`;
-    } else if(type==='strength'){
-      const p={...PROG_DEFAULTS.strength,...prog};
-      paramHtml=`<div class="prog-params">
-        <label>Sätze<input type="number" min="1" max="10" value="${p.sets}" oninput="setExProgParam('${unitId}','${e.id}','sets',this.value)"></label>
-        <label>Ziel-Wdh<input type="number" min="1" max="30" value="${p.reps}" oninput="setExProgParam('${unitId}','${e.id}','reps',this.value)"></label>
-        <label>+kg<input type="number" min="0.5" max="10" step="0.5" value="${p.step}" oninput="setExProgParam('${unitId}','${e.id}','step',this.value)"></label>
-      </div>`;
-    } else if(type==='technique'){
-      paramHtml=`<div class="prog-params technique-hint">Kein Gewichtsvorschlag \u2013 Fokus auf saubere Ausf\u00fchrung.</div>`;
-    }
     return `<div class="exrow-wrap">
       <div class="exrow">
         <input value="${escapeAttr(e.name)}" placeholder="\u00dcbungsname (z.B. Lat-Zug)" oninput="renameExerciseInUnit('${unitId}','${e.id}',this.value)">
@@ -2236,17 +2256,7 @@ function exDefHtmlUnit(unitId){
         <button class="iconbtn mv" onclick="moveExercise('${unitId}','${e.id}',1)" title="Runter">\u25bc</button>
         <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${e.id}')">\u2715</button>
       </div>
-      <div class="prog-rule">
-        <span class="prog-label">Progression:</span>
-        <div class="prog-type-btns">${typeBtns}</div>
-      </div>
-      ${paramHtml}
-      <div class="prog-rule" style="margin-top:6px;">
-        <span class="prog-label">Einarmig:</span>
-        <button class="prog-type-btn${e.uni?' on':''}" onclick="toggleExUni('${unitId}','${e.id}')">${e.uni?'An (L/R getrennt)':'Aus'}</button>
-        <span class="prog-label" style="margin-left:8px;">Assistiert:</span>
-        <button class="prog-type-btn${e.assist?' on':''}" onclick="toggleExAssist('${unitId}','${e.id}')">${e.assist?'An (\u2212/+ )':'Aus'}</button>
-      </div>
+      ${exStrengthControlsHtml(unitId,e)}
       <div class="prog-rule" style="margin-top:6px;">
         <span class="prog-label">Cardio-\u00dcbung:</span>
         <button class="prog-type-btn" onclick="toggleExCardio('${unitId}','${e.id}')">Aus</button>
@@ -2315,9 +2325,16 @@ function calcNextSession(exercise, unitId){
   return null;
 }
 /* Progressionsregel setzen/ändern */
+/* Findet eine Übung ODER eine Alternative anhand ihrer ID (für gemeinsame Einstell-Funktionen) */
+function findExOrAlt(unitId,id){
+  const u=unitById(unitId); if(!u) return null;
+  const exs=u.exercises||[];
+  let ex=exs.find(e=>e.id===id); if(ex) return ex;
+  for(const e of exs){ if(Array.isArray(e.alts)){ const a=e.alts.find(x=>x.id===id); if(a) return a; } }
+  return null;
+}
 function setExProg(unitId,exId,type){
-  const u=unitById(unitId); if(!u) return;
-  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  const ex=findExOrAlt(unitId,exId); if(!ex) return;
   if(type==='off'){ delete ex.prog; }
   else {
     const def=PROG_DEFAULTS[type]||{};
@@ -2326,16 +2343,14 @@ function setExProg(unitId,exId,type){
   save(); render();
 }
 function setExProgParam(unitId,exId,param,val){
-  const u=unitById(unitId); if(!u) return;
-  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex||!ex.prog) return;
+  const ex=findExOrAlt(unitId,exId); if(!ex||!ex.prog) return;
   const num=parseFloat(String(val).replace(',','.'));
   if(!isNaN(num)&&num>0) ex.prog[param]=num;
   save();
 }
 /* Einarmig-Flag pro Übung umschalten */
 function toggleExUni(unitId,exId){
-  const u=unitById(unitId); if(!u) return;
-  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  const ex=findExOrAlt(unitId,exId); if(!ex) return;
   if(ex.uni) delete ex.uni; else ex.uni=true;
   save(); render();
 }
@@ -2406,7 +2421,9 @@ function effectiveExercise(iso,e0){
   if(!altId) return {ex:e0, altOf:null};
   const alt=(e0.alts||[]).find(a=>a.id===altId);
   if(!alt) return {ex:e0, altOf:null};
-  return {ex:{id:alt.id, name:alt.name, prog:e0.prog, uni:e0.uni, assist:e0.assist, cardio:e0.cardio, note:e0.note}, altOf:{origId:e0.id, origName:e0.name}};
+  // Alternative nutzt EIGENE Einstellungen (Progression/Einarmig/Assistiert);
+  // die Art (Cardio ja/nein) erbt sie vom Original.
+  return {ex:{id:alt.id, name:alt.name, prog:alt.prog, uni:alt.uni, assist:alt.assist, cardio:e0.cardio, note:alt.note}, altOf:{origId:e0.id, origName:e0.name}};
 }
 /* Umschalter-UI (🔄-Knopf + optional Auswahl-Panel) für eine Übung im Heute-Tab */
 function altSwitcher(unitId,e0,activeAltId){
@@ -2429,8 +2446,7 @@ function altSwitcher(unitId,e0,activeAltId){
 }
 /* Assistiert-Flag pro Übung umschalten (Gewicht hilft -> negativ) */
 function toggleExAssist(unitId,exId){
-  const u=unitById(unitId); if(!u) return;
-  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  const ex=findExOrAlt(unitId,exId); if(!ex) return;
   if(ex.assist) delete ex.assist; else ex.assist=true;
   save(); render();
 }
