@@ -259,6 +259,24 @@
     padding:10px;border-radius:10px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;}
   .exdef .ex-add:active{background:var(--surface);}
   .exdef .exlabel{font-size:10.5px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:8px;}
+  /* Alternativen-Bereich pro Übung */
+  .alt-box{margin-top:8px;border-top:1px solid var(--line);padding-top:8px;}
+  .alt-box.open{background:var(--surface-2);border-radius:11px;border-top:none;padding:8px 10px 10px;}
+  .alt-head{display:flex;align-items:center;gap:7px;cursor:pointer;padding:2px 0;}
+  .alt-head .alt-ic{color:var(--accent);font-size:15px;font-weight:700;}
+  .alt-head .alt-title{flex:1;font-size:12.5px;color:var(--muted);font-weight:600;letter-spacing:.3px;}
+  .alt-head .alt-title b{color:var(--accent);font-weight:700;}
+  .alt-head .alt-chev{color:var(--muted);font-size:13px;}
+  .alt-hint{font-size:11px;color:var(--muted);line-height:1.4;margin:6px 0 9px;}
+  .alt-hint b{color:var(--text);font-weight:600;}
+  .alt-row{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+  .alt-row input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:9px 11px;font-family:inherit;font-size:13px;outline:none;}
+  .alt-row input:focus{border-color:var(--accent);}
+  .alt-empty{font-size:12px;color:var(--muted);padding:8px 2px 10px;}
+  .alt-add{width:100%;background:transparent;border:1px dashed var(--line);color:var(--accent);
+    padding:9px;border-radius:9px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;margin-top:2px;}
+  .alt-add:active{background:var(--surface);}
 
   /* progress sub-tabs in history */
   .subtabs{display:flex;gap:6px;margin-bottom:18px;}
@@ -663,6 +681,25 @@
   .ex-note-btn:active{opacity:1;}
   .ex-note-text{font-size:11.5px;color:var(--muted);margin-top:3px;cursor:pointer;font-style:italic;line-height:1.4;}
   .ex-note-text:active{opacity:.7;}
+  /* Alternativen-Umschalter im Heute-Tab */
+  .ex-altbtn{background:var(--surface-2);border:1px solid var(--line);color:var(--accent);
+    width:32px;height:32px;border-radius:9px;font-size:16px;font-weight:700;cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;margin-right:4px;}
+  .ex-altbtn.active{background:var(--accent);color:#0c0c0e;border-color:var(--accent);}
+  .ex-altbtn:active{transform:scale(.94);}
+  .ex-altbadge{display:inline-block;font-size:10.5px;color:var(--accent);font-weight:600;margin-top:3px;letter-spacing:.2px;}
+  .alt-pick{margin:0 12px 12px;padding:10px;background:var(--surface-2);border-radius:12px;border:1px solid var(--line);}
+  .alt-pick-t{font-size:10.5px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;font-weight:700;margin-bottom:8px;}
+  .alt-opt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:var(--surface);
+    border:1px solid var(--line);border-radius:9px;padding:11px 12px;margin-bottom:6px;cursor:pointer;
+    font-family:inherit;font-size:14px;color:var(--text);}
+  .alt-opt:last-child{margin-bottom:0;}
+  .alt-opt.on{border-color:var(--accent);background:rgba(205,253,52,.08);}
+  .alt-opt .alt-opt-dot{color:var(--accent);font-size:13px;}
+  .alt-opt .alt-opt-name{flex:1;font-weight:500;}
+  .alt-opt .alt-opt-note{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
+  .alt-opt:active{background:var(--line);}
+  .pc-alt{font-size:11px;color:var(--accent);font-weight:600;margin:-2px 0 6px;letter-spacing:.2px;}
   .ex-note-editor{padding:10px 12px;border-top:1px solid var(--line);background:var(--surface);}
   .ex-note-ta{width:100%;background:transparent;border:1px solid var(--line);border-radius:9px;
     color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px;resize:none;min-height:60px;outline:none;box-sizing:border-box;}
@@ -877,8 +914,9 @@ let openExSet={}, openCardioSet={}, openProgUnits=null, planOpenIdx=-1, planName
 let openProgPoints={}; // pro Übung: ganze Satz-Historie ausgeklappt? (key unitId|exId)
 let openHist={}; // aufgeklappte Übungs-Historie, keyed by unitId+exId
 let openExNote={}; // aufgeklapptes Notiz-Feld pro Übung, keyed by unitId+exId
+let altPickOpen=null; // offener Alternativen-Umschalter im Heute-Tab (exId)
 let wrappedOpen=false, wrappedCard=0, wrappedData=null; // Jahresrückblick "Gym Wrapped"
-let pickerFor=null, libOpenId=null;
+let pickerFor=null, libOpenId=null, altEditId=null;
 let needsOnboarding=false;
 let ob=null; // Onboarding-Zustand
 const WEEKDAYS=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
@@ -986,11 +1024,14 @@ function cardioDefHtmlUnit(unitId){
   const u=unitById(unitId); if(!u) return '';
   const acts=u.exercises||[];
   const rows=acts.map(a=>`
-    <div class="exrow">
-      <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
-      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
-      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
-      <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+    <div class="exrow-wrap">
+      <div class="exrow">
+        <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
+        <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+      </div>
+      ${altSectionHtml(unitId,{...a,cardio:true})}
     </div>`).join('');
   return `<div class="exdef">
     <div class="exlabel">Cardio-Aktivit\u00e4ten f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
@@ -2165,6 +2206,29 @@ function renderToday(){
 }
 
 /* Übungs-Editor (operiert auf der Unit-Bibliothek) */
+/* Aufklappbarer "Alternativen"-Bereich einer Übung (dezent, standardmäßig zu) */
+function altSectionHtml(unitId,e){
+  const alts=Array.isArray(e.alts)?e.alts:[];
+  const open=altEditId===e.id;
+  const head=`<div class="alt-head" onclick="toggleAltEdit('${e.id}')">
+    <span class="alt-ic">\u21bb</span>
+    <span class="alt-title">Alternativen${alts.length?` <b>${alts.length}</b>`:''}</span>
+    <span class="alt-chev">${open?'\u2303':'\u2304'}</span>
+  </div>`;
+  if(!open) return `<div class="alt-box">${head}</div>`;
+  const ph=e.cardio?'Cardio-Alternative (z.B. Fahrrad)':'Alternative (z.B. Klimmz\u00fcge)';
+  const rows=alts.map(a=>`
+    <div class="alt-row">
+      <input value="${escapeAttr(a.name)}" placeholder="${ph}" oninput="renameAlt('${unitId}','${e.id}','${a.id}',this.value)">
+      <button class="iconbtn del" onclick="delAltFromExercise('${unitId}','${e.id}','${a.id}')">\u2715</button>
+    </div>`).join('');
+  return `<div class="alt-box open">
+    ${head}
+    <div class="alt-hint">Ausweich-\u00dcbungen mit <b>eigener Historie</b>. Im Heute-Tab per \u21bb w\u00e4hlbar, wenn z.B. ein Ger\u00e4t belegt ist.</div>
+    ${rows||'<div class="alt-empty">Noch keine Alternative hinterlegt.</div>'}
+    <button class="alt-add" onclick="addAltToExercise('${unitId}','${e.id}')">+ Alternative hinzuf\u00fcgen</button>
+  </div>`;
+}
 function exDefHtmlUnit(unitId){
   const u=unitById(unitId); if(!u) return '';
   const ex=u.exercises||[];
@@ -2183,6 +2247,7 @@ function exDefHtmlUnit(unitId){
           <button class="prog-type-btn on" onclick="toggleExCardio('${unitId}','${e.id}')">An (Zeit/Puls)</button>
         </div>
         <div class="hint" style="margin-top:4px;">Felder: Dauer, \u00d8-Puls, Max-Puls \u00b7 z\u00e4hlt nicht ins Volumen.</div>
+        ${altSectionHtml(unitId,e)}
       </div>`;
     }
     const prog=e.prog||{type:'off'};
@@ -2233,6 +2298,7 @@ function exDefHtmlUnit(unitId){
         <span class="prog-label">Cardio-\u00dcbung:</span>
         <button class="prog-type-btn" onclick="toggleExCardio('${unitId}','${e.id}')">Aus</button>
       </div>
+      ${altSectionHtml(unitId,e)}
     </div>`;
   }).join('');
   return `<div class="exdef">
@@ -2333,6 +2399,81 @@ function toggleExCardio(unitId,exId){
   }
   save(); render();
 }
+/* ===== Ersatz-/Alternativ-Übungen (eigene Historie, gleiche Art wie Original) ===== */
+function toggleAltEdit(exId){ altEditId=(altEditId===exId)?null:exId; render(); }
+function addAltToExercise(unitId,exId){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex) return;
+  if(!Array.isArray(ex.alts)) ex.alts=[];
+  ex.alts.push({id:makeId(), name:''});
+  altEditId=exId; save(); render();
+}
+function renameAlt(unitId,exId,altId,name){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex||!Array.isArray(ex.alts)) return;
+  ex.alts=ex.alts.map(a=>a.id===altId?{...a,name}:a);
+  if(ex.cardio || u.cardio) recordCardioName(altId,name); // Cardio-Alt-Name für Verlauf merken
+  save();
+}
+function altHasData(unitId,altId){
+  return Object.keys(state.log||{}).some(d=>{
+    const e=state.log[d]; const s=e.sets&&e.sets[unitId];
+    return (s&&s[altId]) || (e.cardio&&e.cardio[altId]);
+  });
+}
+function delAltFromExercise(unitId,exId,altId){
+  const u=unitById(unitId); if(!u) return;
+  const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex||!Array.isArray(ex.alts)) return;
+  if(altHasData(unitId,altId)){
+    if(!confirm('Diese Alternative hat bereits Eintr\u00e4ge.\nWirklich entfernen? Die alten Eintr\u00e4ge bleiben im Verlauf erhalten.')) return;
+  }
+  ex.alts=ex.alts.filter(a=>a.id!==altId);
+  save(); render();
+}
+/* ===== Heute-Tab: Umschalten auf eine Alternative (nur für heute) ===== */
+function toggleAltPick(exId){ altPickOpen=(altPickOpen===exId)?null:exId; render(); }
+function setActiveAlt(unitId,exId,altId){
+  const iso=todayISO();
+  if(!state.log[iso]) state.log[iso]={};
+  if(!state.log[iso].altOf) state.log[iso].altOf={};
+  if(altId){ state.log[iso].altOf[exId]=altId; }
+  else { delete state.log[iso].altOf[exId]; } // zurück zum Original
+  // Aufräumen falls leer
+  if(state.log[iso].altOf && !Object.keys(state.log[iso].altOf).length) delete state.log[iso].altOf;
+  altPickOpen=null; save(); render();
+}
+/* Welche Variante (Original oder Alternative) ist heute für eine Übung aktiv? */
+function activeAltIdFor(iso,exId){
+  const e=state.log[iso];
+  return (e&&e.altOf&&e.altOf[exId])||null;
+}
+/* Baut die effektive Übung (Original oder aktive Alternative, erbt Art+Regel) */
+function effectiveExercise(iso,e0){
+  const altId=activeAltIdFor(iso,e0.id);
+  if(!altId) return {ex:e0, altOf:null};
+  const alt=(e0.alts||[]).find(a=>a.id===altId);
+  if(!alt) return {ex:e0, altOf:null};
+  return {ex:{id:alt.id, name:alt.name, prog:e0.prog, uni:e0.uni, assist:e0.assist, cardio:e0.cardio, note:e0.note}, altOf:{origId:e0.id, origName:e0.name}};
+}
+/* Umschalter-UI (🔄-Knopf + optional Auswahl-Panel) für eine Übung im Heute-Tab */
+function altSwitcher(unitId,e0,activeAltId){
+  const hasAlts=Array.isArray(e0.alts)&&e0.alts.length>0;
+  if(!hasAlts) return {btn:'', panel:''};
+  const btn=`<button class="ex-altbtn${activeAltId?' active':''}" onclick="event.stopPropagation();toggleAltPick('${e0.id}')" title="Alternative w\u00e4hlen">\u21bb</button>`;
+  if(altPickOpen!==e0.id) return {btn, panel:''};
+  const opts=[{id:null,name:e0.name,orig:true}].concat((e0.alts||[]).map(a=>({id:a.id,name:a.name})));
+  const items=opts.map(o=>{
+    const act=(o.orig&&!activeAltId)||(o.id===activeAltId);
+    const arg=o.id?`'${o.id}'`:'null';
+    return `<button class="alt-opt${act?' on':''}" onclick="event.stopPropagation();setActiveAlt('${unitId}','${e0.id}',${arg})">
+      <span class="alt-opt-dot">${act?'\u25cf':'\u25cb'}</span>
+      <span class="alt-opt-name">${escapeHtml(o.name||'(unbenannt)')}</span>
+      ${o.orig?'<span class="alt-opt-note">Original</span>':''}</button>`;
+  }).join('');
+  const panel=`<div class="alt-pick" onclick="event.stopPropagation()">
+    <div class="alt-pick-t">Heute stattdessen trainieren:</div>${items}</div>`;
+  return {btn, panel};
+}
 /* Assistiert-Flag pro Übung umschalten (Gewicht hilft -> negativ) */
 function toggleExAssist(unitId,exId){
   const u=unitById(unitId); if(!u) return;
@@ -2375,7 +2516,14 @@ function sessionExercisesHtml(idx,unitId){
       Tippe oben auf <b>+ \u00dcbung</b> und f\u00fcge bei dieser Einheit \u00dcbungen hinzu.</div>`;
   }
   const unitAttr=escapeAttr(unitId);
-  const cards=ex.map(e=>{
+  const cards=ex.map(e0=>{
+    // Aktive Variante heute bestimmen (Original oder Alternative)
+    const activeAltId=activeAltIdFor(iso,e0.id);
+    const effRes=effectiveExercise(iso,e0);
+    const e=effRes.ex;
+    const altOf=effRes.altOf;
+    const sw=altSwitcher(unitId,e0,activeAltId);
+    const altBadge=altOf?`<div class="ex-altbadge">\u21bb statt ${escapeHtml(short(altOf.origName,20))}</div>`:'';
     // Cardio-Übung: Zeit/Puls statt Sätze (Daten in entry.cardio[e.id])
     if(e.cardio){
       const le=state.log[iso]||{};
@@ -2400,10 +2548,13 @@ function sessionExercisesHtml(idx,unitId){
           <button class="ex-check ${cchecked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${e.id}')">\u2713</button>
           <div class="ex-headtxt">
             <div class="ex-name">\ud83c\udfc3 ${escapeHtml(e.name||'Cardio')}</div>
+            ${altBadge}
             ${cchecked?`<div class="ex-sub">${escapeHtml(cardioSummary(cd))}</div>`:''}
           </div>
+          ${sw.btn}
           ${!cchecked?`<span class="ex-chev">${copen?'\u2303':'\u2304'}</span>`:''}
         </div>
+        ${sw.panel}
         ${(copen&&!cchecked)?`<div class="ex-body">${cbody}</div>`:''}
       </div>`;
     }
@@ -2503,11 +2654,14 @@ function sessionExercisesHtml(idx,unitId){
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleExCheck('${unitAttr}','${e.id}')">\u2713</button>
         <div class="ex-headtxt">
           <div class="ex-name">${escapeHtml(e.name||'(unbenannt)')}${!checked&&!noteOpen?`<button class="ex-note-btn${exNote?' has-note':''}" onclick="event.stopPropagation();toggleExNote('${unitAttr}','${e.id}')" title="Notiz">\u270f\ufe0f</button>`:''}</div>
+          ${altBadge}
           ${checked?`<div class="ex-sub">${escapeHtml(exSummary(unitId,e.id))}</div>`:''}
           ${noteDisplay}
         </div>
+        ${sw.btn}
         ${!checked&&!noteOpen?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${sw.panel}
       ${noteEditor}
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
@@ -2532,11 +2686,18 @@ function cardioLogHtml(entry, unit){
     return `<div class="ex-empty">Noch keine Cardio-Aktivit\u00e4ten f\u00fcr diese Einheit.<br>
       Lege sie im <b>Plan</b>-Tab bei dieser Einheit an.</div>`;
   }
-  const units=acts.map(act=>{
+  const iso=todayISO();
+  const units=acts.map(act0=>{
+    // Wurde heute auf eine Alternative getauscht?
+    const activeAltId=activeAltIdFor(iso,act0.id);
+    let act=act0, altOfName=null;
+    if(activeAltId){ const alt=(act0.alts||[]).find(a=>a.id===activeAltId); if(alt){ act={id:alt.id,name:alt.name}; altOfName=act0.name; } }
     const key=act.id;
     const d=cd[key]||{};
     const checked=!!d.done;
     const open=isCardioOpen(key,checked);
+    const sw=altSwitcher(unit.id,act0,activeAltId);
+    const altBadge=altOfName?`<div class="ex-altbadge">\u21bb statt ${escapeHtml(short(altOfName,20))}</div>`:'';
     const body=`<div class="cardio-fields">
         <div class="cfield"><label>DAUER (min)</label>
           <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
@@ -2555,10 +2716,13 @@ function cardioLogHtml(entry, unit){
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${key}')">\u2713</button>
         <div class="ex-headtxt">
           <div class="ex-name">\ud83c\udfc3 ${escapeHtml(act.name||'Cardio')}</div>
+          ${altBadge}
           ${checked?`<div class="ex-sub">${escapeHtml(cardioSummary(d))}</div>`:''}
         </div>
+        ${sw.btn}
         ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${sw.panel}
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
@@ -2745,7 +2909,11 @@ function buildShareCardHtml(iso){
   let exRows=''; let exCount=0, cardioCount=0;
   if(unit&&Array.isArray(unit.exercises)){
     const sets=(e.sets&&e.sets[unit.id])||{};
-    unit.exercises.forEach(ex=>{
+    unit.exercises.forEach(ex0=>{
+      // Wurde an diesem Tag auf eine Alternative getauscht? Dann diese anzeigen.
+      const altId=(e.altOf&&e.altOf[ex0.id])||null;
+      let ex=ex0;
+      if(altId){ const alt=(ex0.alts||[]).find(a=>a.id===altId); if(alt) ex={id:alt.id, name:alt.name, cardio:ex0.cardio}; }
       const isCardio=unit.cardio||ex.cardio;
       if(isCardio){
         const cd=(e.cardio&&e.cardio[ex.id])||{};
@@ -2921,8 +3089,8 @@ function historyProgressHtml(){
   const blocks=units.map(u=>{
     const ex=getExercisesByUnitId(u.id);
     if(!ex.length) return '';
-    const cards=ex.map(e=>{
-      const series=seriesFor(u.id,e.id);
+    const renderProgCard=(exId, exName, altOfName)=>{
+      const series=seriesFor(u.id,exId);
       if(!series.length) return '';
       anyData=true;
       const latest=series[series.length-1];
@@ -2933,11 +3101,10 @@ function historyProgressHtml(){
       else if(series.length>1&&diff<0){ trendCls='down'; trendTxt=`${fmt(diff)} kg seit Start`; }
       else if(series.length===1){ trendCls='flat'; trendTxt='erster Eintrag'; }
       const total=series.length;
-      const ptsKey=u.id+'|'+e.id;
+      const ptsKey=u.id+'|'+exId;
       const expanded=!!openProgPoints[ptsKey];
       const LIMIT=5;
       const showCount=expanded?total:Math.min(LIMIT,total);
-      // Sätze sauber darstellen: nur ganze Sätze, nie mitten im Wert abgeschnitten
       function fmtSets(rows){
         const all=rows.filter(r=>r.kg!=null);
         const maxShow=4;
@@ -2948,7 +3115,7 @@ function historyProgressHtml(){
       }
       let ppHtml='';
       for(let k=0;k<showCount;k++){
-        const realIdx=total-1-k; // neueste zuerst
+        const realIdx=total-1-k;
         const s=series[realIdx];
         const prev=realIdx>0?series[realIdx-1]:null;
         let kgCls='';
@@ -2964,14 +3131,22 @@ function historyProgressHtml(){
       const moreBtn=total>LIMIT
         ? `<button class="pp-more" onclick="toggleProgPoints('${escapeAttr(ptsKey)}')">${expanded?'Weniger anzeigen \u2303':'Alle '+total+' anzeigen \u2304'}</button>`
         : '';
+      const altTag=altOfName?`<div class="pc-alt">\u21bb Alternative zu ${escapeHtml(short(altOfName,20))}</div>`:'';
       return `<div class="progcard">
-        <div class="pc-head"><div class="pc-name">${escapeHtml(e.name||'(unbenannt)')}</div>
+        <div class="pc-head"><div class="pc-name">${escapeHtml(exName||'(unbenannt)')}</div>
           <div class="pc-now">${fmt(latest.kg)}<small> kg</small></div></div>
+        ${altTag}
         <div class="pc-trend ${trendCls}">${trendTxt}</div>
         ${buildExerciseChart(series)}
         <div class="pc-points">${ppHtml}</div>
         ${moreBtn}
       </div>`;
+    };
+    const cards=ex.map(e=>{
+      let html=renderProgCard(e.id, e.name, null);
+      // Alternativen mit eigenen Daten bekommen ihren eigenen Graphen
+      if(Array.isArray(e.alts)) e.alts.forEach(a=>{ html+=renderProgCard(a.id, a.name, e.name); });
+      return html;
     }).filter(Boolean).join('');
     if(!cards) return '';
     const isOpen=!!openProgUnits[u.id];
