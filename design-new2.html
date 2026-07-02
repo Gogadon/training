@@ -699,6 +699,7 @@
   .alt-opt .alt-opt-name{flex:1;font-weight:500;}
   .alt-opt .alt-opt-note{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;}
   .alt-opt:active{background:var(--line);}
+  .pc-alt{font-size:11px;color:var(--accent);font-weight:600;margin:-2px 0 6px;letter-spacing:.2px;}
   .ex-note-editor{padding:10px 12px;border-top:1px solid var(--line);background:var(--surface);}
   .ex-note-ta{width:100%;background:transparent;border:1px solid var(--line);border-radius:9px;
     color:var(--text);font-family:inherit;font-size:13px;padding:9px 11px;resize:none;min-height:60px;outline:none;box-sizing:border-box;}
@@ -1022,11 +1023,14 @@ function cardioDefHtmlUnit(unitId){
   const u=unitById(unitId); if(!u) return '';
   const acts=u.exercises||[];
   const rows=acts.map(a=>`
-    <div class="exrow">
-      <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
-      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
-      <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
-      <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+    <div class="exrow-wrap">
+      <div class="exrow">
+        <input value="${escapeAttr(a.name)}" placeholder="Aktivit\u00e4t (z.B. Stairmaster)" oninput="renameExerciseInUnit('${unitId}','${a.id}',this.value)">
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',-1)" title="Hoch" style="transform:rotate(180deg)">\u25bc</button>
+        <button class="iconbtn mv" onclick="moveExercise('${unitId}','${a.id}',1)" title="Runter">\u25bc</button>
+        <button class="iconbtn del" onclick="delExerciseFromUnit('${unitId}','${a.id}')">\u2715</button>
+      </div>
+      ${altSectionHtml(unitId,{...a,cardio:true})}
     </div>`).join('');
   return `<div class="exdef">
     <div class="exlabel">Cardio-Aktivit\u00e4ten f\u00fcr \u201e${escapeHtml(short(u.name,22))}\u201c</div>
@@ -2361,7 +2365,7 @@ function renameAlt(unitId,exId,altId,name){
   const u=unitById(unitId); if(!u) return;
   const ex=(u.exercises||[]).find(e=>e.id===exId); if(!ex||!Array.isArray(ex.alts)) return;
   ex.alts=ex.alts.map(a=>a.id===altId?{...a,name}:a);
-  if(ex.cardio) recordCardioName(altId,name); // Cardio-Alt-Name für Verlauf merken
+  if(ex.cardio || u.cardio) recordCardioName(altId,name); // Cardio-Alt-Name für Verlauf merken
   save();
 }
 function altHasData(unitId,altId){
@@ -2635,11 +2639,18 @@ function cardioLogHtml(entry, unit){
     return `<div class="ex-empty">Noch keine Cardio-Aktivit\u00e4ten f\u00fcr diese Einheit.<br>
       Lege sie im <b>Plan</b>-Tab bei dieser Einheit an.</div>`;
   }
-  const units=acts.map(act=>{
+  const iso=todayISO();
+  const units=acts.map(act0=>{
+    // Wurde heute auf eine Alternative getauscht?
+    const activeAltId=activeAltIdFor(iso,act0.id);
+    let act=act0, altOfName=null;
+    if(activeAltId){ const alt=(act0.alts||[]).find(a=>a.id===activeAltId); if(alt){ act={id:alt.id,name:alt.name}; altOfName=act0.name; } }
     const key=act.id;
     const d=cd[key]||{};
     const checked=!!d.done;
     const open=isCardioOpen(key,checked);
+    const sw=altSwitcher(unit.id,act0,activeAltId);
+    const altBadge=altOfName?`<div class="ex-altbadge">\u21bb statt ${escapeHtml(short(altOfName,20))}</div>`:'';
     const body=`<div class="cardio-fields">
         <div class="cfield"><label>DAUER (min)</label>
           <input type="number" inputmode="numeric" min="0" max="999" placeholder="15"
@@ -2658,10 +2669,13 @@ function cardioLogHtml(entry, unit){
         <button class="ex-check ${checked?'on':''}" onclick="event.stopPropagation();toggleCardioUnit('${key}')">\u2713</button>
         <div class="ex-headtxt">
           <div class="ex-name">\ud83c\udfc3 ${escapeHtml(act.name||'Cardio')}</div>
+          ${altBadge}
           ${checked?`<div class="ex-sub">${escapeHtml(cardioSummary(d))}</div>`:''}
         </div>
+        ${sw.btn}
         ${!checked?`<span class="ex-chev">${open?'\u2303':'\u2304'}</span>`:''}
       </div>
+      ${sw.panel}
       ${(open&&!checked)?`<div class="ex-body">${body}</div>`:''}
     </div>`;
   }).join('');
@@ -2848,7 +2862,11 @@ function buildShareCardHtml(iso){
   let exRows=''; let exCount=0, cardioCount=0;
   if(unit&&Array.isArray(unit.exercises)){
     const sets=(e.sets&&e.sets[unit.id])||{};
-    unit.exercises.forEach(ex=>{
+    unit.exercises.forEach(ex0=>{
+      // Wurde an diesem Tag auf eine Alternative getauscht? Dann diese anzeigen.
+      const altId=(e.altOf&&e.altOf[ex0.id])||null;
+      let ex=ex0;
+      if(altId){ const alt=(ex0.alts||[]).find(a=>a.id===altId); if(alt) ex={id:alt.id, name:alt.name, cardio:ex0.cardio}; }
       const isCardio=unit.cardio||ex.cardio;
       if(isCardio){
         const cd=(e.cardio&&e.cardio[ex.id])||{};
@@ -3024,8 +3042,8 @@ function historyProgressHtml(){
   const blocks=units.map(u=>{
     const ex=getExercisesByUnitId(u.id);
     if(!ex.length) return '';
-    const cards=ex.map(e=>{
-      const series=seriesFor(u.id,e.id);
+    const renderProgCard=(exId, exName, altOfName)=>{
+      const series=seriesFor(u.id,exId);
       if(!series.length) return '';
       anyData=true;
       const latest=series[series.length-1];
@@ -3036,11 +3054,10 @@ function historyProgressHtml(){
       else if(series.length>1&&diff<0){ trendCls='down'; trendTxt=`${fmt(diff)} kg seit Start`; }
       else if(series.length===1){ trendCls='flat'; trendTxt='erster Eintrag'; }
       const total=series.length;
-      const ptsKey=u.id+'|'+e.id;
+      const ptsKey=u.id+'|'+exId;
       const expanded=!!openProgPoints[ptsKey];
       const LIMIT=5;
       const showCount=expanded?total:Math.min(LIMIT,total);
-      // Sätze sauber darstellen: nur ganze Sätze, nie mitten im Wert abgeschnitten
       function fmtSets(rows){
         const all=rows.filter(r=>r.kg!=null);
         const maxShow=4;
@@ -3051,7 +3068,7 @@ function historyProgressHtml(){
       }
       let ppHtml='';
       for(let k=0;k<showCount;k++){
-        const realIdx=total-1-k; // neueste zuerst
+        const realIdx=total-1-k;
         const s=series[realIdx];
         const prev=realIdx>0?series[realIdx-1]:null;
         let kgCls='';
@@ -3067,14 +3084,22 @@ function historyProgressHtml(){
       const moreBtn=total>LIMIT
         ? `<button class="pp-more" onclick="toggleProgPoints('${escapeAttr(ptsKey)}')">${expanded?'Weniger anzeigen \u2303':'Alle '+total+' anzeigen \u2304'}</button>`
         : '';
+      const altTag=altOfName?`<div class="pc-alt">\u21bb Alternative zu ${escapeHtml(short(altOfName,20))}</div>`:'';
       return `<div class="progcard">
-        <div class="pc-head"><div class="pc-name">${escapeHtml(e.name||'(unbenannt)')}</div>
+        <div class="pc-head"><div class="pc-name">${escapeHtml(exName||'(unbenannt)')}</div>
           <div class="pc-now">${fmt(latest.kg)}<small> kg</small></div></div>
+        ${altTag}
         <div class="pc-trend ${trendCls}">${trendTxt}</div>
         ${buildExerciseChart(series)}
         <div class="pc-points">${ppHtml}</div>
         ${moreBtn}
       </div>`;
+    };
+    const cards=ex.map(e=>{
+      let html=renderProgCard(e.id, e.name, null);
+      // Alternativen mit eigenen Daten bekommen ihren eigenen Graphen
+      if(Array.isArray(e.alts)) e.alts.forEach(a=>{ html+=renderProgCard(a.id, a.name, e.name); });
+      return html;
     }).filter(Boolean).join('');
     if(!cards) return '';
     const isOpen=!!openProgUnits[u.id];
