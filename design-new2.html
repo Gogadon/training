@@ -429,6 +429,7 @@
   .sheet-drag:active .sheet-grip{background:var(--muted);}
   .sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .sheet-title{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:.5px;}
+  .sheet-sub{font-size:11px;color:var(--accent);font-weight:600;margin-top:2px;letter-spacing:.3px;}
   .sheet-x{width:32px;height:32px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line);
     color:var(--muted);font-size:15px;cursor:pointer;flex-shrink:0;}
   .sheet-sec{background:var(--surface-2);border-radius:14px;padding:14px;margin-bottom:12px;}
@@ -2190,7 +2191,7 @@ function renderToday(){
 /* Übungs-Editor (operiert auf der Unit-Bibliothek) */
 /* Aufklappbarer "Alternativen"-Bereich einer Übung (dezent, standardmäßig zu) */
 /* ===== Einstellungen-Bottom-Sheet (aufgeräumte Optionen pro Übung/Alternative) ===== */
-function openExSheet(unitId,exId){ sheetOpen={unitId,exId}; render(); }
+function openExSheet(unitId,exId,isAlt){ sheetOpen={unitId,exId,isAlt:!!isAlt}; render(); }
 function closeExSheet(){ sheetOpen=null; render(); }
 /* Griff-Runterziehen zum Schließen (Touch) */
 let _sheetDrag=null;
@@ -2219,11 +2220,12 @@ function sheetDragEnd(){
 }
 function exSettingsSheetHtml(){
   if(!sheetOpen) return '';
-  const {unitId,exId}=sheetOpen;
+  const {unitId,exId,isAlt}=sheetOpen;
   const e=findExOrAlt(unitId,exId);
   if(!e) return '';
   const isCardio=!!e.cardio;
-  const cardioSection=`
+  // Bei Alternativen gibt das Original die Art vor -> keine Cardio-Sektion
+  const cardioSection=isAlt?'':`
     <div class="sheet-sec">
       <div class="sheet-h">Art der \u00dcbung</div>
       <div class="prog-rule">
@@ -2232,18 +2234,20 @@ function exSettingsSheetHtml(){
       </div>
       ${isCardio?'<div class="hint" style="margin-top:6px;">Feste Felder: Dauer, \u00d8-Puls, Max-Puls \u00b7 z\u00e4hlt nicht ins Volumen.</div>':'<div class="hint" style="margin-top:6px;">Aus = normale Kraft\u00fcbung mit S\u00e4tzen. An = Zeit/Puls statt S\u00e4tze.</div>'}
     </div>`;
-  const strengthSection=isCardio?'':`
+  const showStrength=isAlt||!isCardio;
+  const strengthSection=showStrength?`
     <div class="sheet-sec">
       <div class="sheet-h">Progression &amp; Varianten</div>
       ${exStrengthControlsHtml(unitId,e)}
-    </div>`;
+    </div>`:'';
+  const subtitle=isAlt?'<div class="sheet-sub">\u21bb Alternative</div>':'';
   return `<div class="sheet-ov" onclick="closeExSheet()"></div>
     <div class="sheet" onclick="event.stopPropagation()">
       <div class="sheet-drag" ontouchstart="sheetDragStart(event)" ontouchmove="sheetDragMove(event)" ontouchend="sheetDragEnd(event)">
         <div class="sheet-grip"></div>
       </div>
       <div class="sheet-top">
-        <div class="sheet-title">\u2699\ufe0f ${escapeHtml(short(e.name||'\u00dcbung',28))}</div>
+        <div><div class="sheet-title">\u2699\ufe0f ${escapeHtml(short(e.name||'\u00dcbung',26))}</div>${subtitle}</div>
         <button class="sheet-x" onclick="closeExSheet()">\u2715</button>
       </div>
       <div class="sheet-body">
@@ -2304,16 +2308,14 @@ function altSectionHtml(unitId,e){
   const ph=e.cardio?'Cardio-Alternative (z.B. Fahrrad)':'Alternative (z.B. Klimmz\u00fcge)';
   const isCardioParent=!!e.cardio;
   const rows=alts.map(a=>`
-    <div class="alt-item">
-      <div class="alt-row">
-        <input value="${escapeAttr(a.name)}" placeholder="${ph}" oninput="renameAlt('${unitId}','${e.id}','${a.id}',this.value)">
-        <button class="iconbtn del" onclick="delAltFromExercise('${unitId}','${e.id}','${a.id}')">\u2715</button>
-      </div>
-      ${isCardioParent?'':`<div class="alt-settings">${exStrengthControlsHtml(unitId,a)}</div>`}
+    <div class="alt-row">
+      <input value="${escapeAttr(a.name)}" placeholder="${ph}" oninput="renameAlt('${unitId}','${e.id}','${a.id}',this.value)">
+      ${isCardioParent?'':`<button class="iconbtn gear" onclick="openExSheet('${unitId}','${a.id}',true)" title="Einstellungen">\u2699</button>`}
+      <button class="iconbtn del" onclick="delAltFromExercise('${unitId}','${e.id}','${a.id}')">\u2715</button>
     </div>`).join('');
   return `<div class="alt-box open">
     ${head}
-    <div class="alt-hint">Ausweich-\u00dcbungen mit <b>eigener Historie</b> und <b>eigenen Einstellungen</b>. Im Heute-Tab per \u21bb w\u00e4hlbar.</div>
+    <div class="alt-hint">Ausweich-\u00dcbungen mit <b>eigener Historie</b> und <b>eigenen Einstellungen</b> (\u2699). Im Heute-Tab per \u21bb w\u00e4hlbar.</div>
     ${rows||'<div class="alt-empty">Noch keine Alternative hinterlegt.</div>'}
     <button class="alt-add" onclick="addAltToExercise('${unitId}','${e.id}')">+ Alternative hinzuf\u00fcgen</button>
   </div>`;
