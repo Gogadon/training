@@ -424,7 +424,9 @@
     max-height:82vh;overflow-y:auto;padding:10px 18px calc(20px + env(safe-area-inset-bottom));
     box-shadow:0 -12px 40px rgba(0,0,0,.5);animation:sheetUp .26s cubic-bezier(.2,.8,.2,1);}
   @keyframes sheetUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
-  .sheet-grip{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 12px;}
+  .sheet-drag{padding:6px 0 4px;margin:-4px 0 8px;cursor:grab;touch-action:none;}
+  .sheet-grip{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 0;transition:background .15s;}
+  .sheet-drag:active .sheet-grip{background:var(--muted);}
   .sheet-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
   .sheet-title{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:.5px;}
   .sheet-x{width:32px;height:32px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line);
@@ -1453,6 +1455,7 @@ function render(){
   else if(view==='data') app.innerHTML=renderData();
   if(sheetOpen) app.innerHTML+=exSettingsSheetHtml();
   renderNav();
+  if(nav) nav.style.display = sheetOpen ? 'none' : '';
   app.querySelectorAll('.note-ta').forEach(ta=>{ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; });
 }
 
@@ -2189,6 +2192,31 @@ function renderToday(){
 /* ===== Einstellungen-Bottom-Sheet (aufgeräumte Optionen pro Übung/Alternative) ===== */
 function openExSheet(unitId,exId){ sheetOpen={unitId,exId}; render(); }
 function closeExSheet(){ sheetOpen=null; render(); }
+/* Griff-Runterziehen zum Schließen (Touch) */
+let _sheetDrag=null;
+function sheetDragStart(ev){
+  const t=ev.touches?ev.touches[0]:ev;
+  const el=ev.currentTarget.closest('.sheet');
+  _sheetDrag={y0:t.clientY, dy:0, el};
+  if(el) el.style.transition='none';
+}
+function sheetDragMove(ev){
+  if(!_sheetDrag) return;
+  const t=ev.touches?ev.touches[0]:ev;
+  let dy=t.clientY-_sheetDrag.y0;
+  if(dy<0) dy=0;
+  _sheetDrag.dy=dy;
+  if(_sheetDrag.el) _sheetDrag.el.style.transform='translateY('+dy+'px)';
+  if(dy>0&&ev.cancelable) ev.preventDefault();
+}
+function sheetDragEnd(){
+  if(!_sheetDrag) return;
+  const el=_sheetDrag.el, dy=_sheetDrag.dy;
+  if(el) el.style.transition='';
+  if(dy>110){ _sheetDrag=null; closeExSheet(); return; }
+  if(el) el.style.transform='';
+  _sheetDrag=null;
+}
 function exSettingsSheetHtml(){
   if(!sheetOpen) return '';
   const {unitId,exId}=sheetOpen;
@@ -2211,7 +2239,9 @@ function exSettingsSheetHtml(){
     </div>`;
   return `<div class="sheet-ov" onclick="closeExSheet()"></div>
     <div class="sheet" onclick="event.stopPropagation()">
-      <div class="sheet-grip"></div>
+      <div class="sheet-drag" ontouchstart="sheetDragStart(event)" ontouchmove="sheetDragMove(event)" ontouchend="sheetDragEnd(event)">
+        <div class="sheet-grip"></div>
+      </div>
       <div class="sheet-top">
         <div class="sheet-title">\u2699\ufe0f ${escapeHtml(short(e.name||'\u00dcbung',28))}</div>
         <button class="sheet-x" onclick="closeExSheet()">\u2715</button>
