@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All-in-One — Design-Konzept „frisch"</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0C0D0E;
+    --surface:#15171A;
+    --surface-2:#1D2125;
+    --line:rgba(255,255,255,.08);
+    --text:#F2F5F3;
+    --dim:#868D88;
+    --dim-2:#5C625E;
+    /* Farbsystem pro Sportart */
+    --kraft:#CDFD34;   /* Marke bleibt */
+    --rad:#37D7F4;
+    --wandern:#FCB44B;
+    --schwimmen:#A78BFA;
+    --font-display:'Bricolage Grotesque',system-ui,sans-serif;
+    --font-body:'Sora',system-ui,sans-serif;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-body);
+    background:
+      radial-gradient(120% 80% at 50% -10%, #16191c 0%, #0C0D0E 55%);
+    color:var(--text);
+    min-height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:32px 16px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* Telefon-Rahmen */
+  .phone{
+    width:390px;
+    max-width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:44px;
+    padding:14px 0 0;
+    box-shadow:0 40px 120px -20px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.02) inset;
+    overflow:hidden;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    height:840px;
+  }
+  .notch{
+    width:120px;height:26px;border-radius:0 0 16px 16px;background:#000;
+    margin:-14px auto 0;flex:0 0 auto;
+  }
+
+  .app{
+    flex:1 1 auto;
+    overflow-y:auto;
+    padding:14px 22px 20px;
+    scrollbar-width:none;
+  }
+  .app::-webkit-scrollbar{display:none}
+
+  /* Kopf */
+  .top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 2px 20px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;font-weight:600;color:var(--dim)}
+  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--kraft);
+    box-shadow:0 0 12px var(--kraft)}
+  .date{font-size:12px;color:var(--dim-2);letter-spacing:.02em}
+
+  .greet{margin:0 2px 22px}
+  .greet h1{font-family:var(--font-display);font-weight:700;font-size:30px;
+    line-height:1.05;letter-spacing:-.02em}
+  .greet p{color:var(--dim);font-size:14px;margin-top:6px}
+
+  /* Hero: heutige Einheit */
+  .hero{
+    position:relative;border-radius:26px;padding:22px;
+    background:linear-gradient(160deg, #191d17 0%, #14170f 100%);
+    border:1px solid rgba(205,253,52,.16);
+    overflow:hidden;margin-bottom:26px;
+  }
+  .hero::before{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(90% 120% at 88% -20%, rgba(205,253,52,.22), transparent 60%);
+    pointer-events:none;
+  }
+  .hero .eyebrow{position:relative;display:inline-flex;align-items:center;gap:7px;
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;
+    color:var(--kraft)}
+  .hero .eyebrow .pip{width:6px;height:6px;border-radius:50%;background:var(--kraft)}
+  .hero h2{position:relative;font-family:var(--font-display);font-weight:700;
+    font-size:26px;letter-spacing:-.01em;margin:12px 0 4px}
+  .hero .meta{position:relative;color:var(--dim);font-size:13px;margin-bottom:20px}
+  .hero .cta{
+    position:relative;display:inline-flex;align-items:center;gap:8px;
+    background:var(--kraft);color:#101300;border:none;cursor:pointer;
+    font-family:var(--font-body);font-weight:600;font-size:14px;
+    padding:12px 20px;border-radius:14px;transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .hero .cta:hover{transform:translateY(-1px);box-shadow:0 8px 24px -8px rgba(205,253,52,.6)}
+  .hero .cta:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+  /* Abschnittslabel */
+  .label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim-2);font-weight:600;margin:0 2px 12px}
+
+  /* Wochen-Kacheln */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:28px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    padding:15px 14px}
+  .tile .num{font-family:var(--font-display);font-weight:700;font-size:22px;
+    line-height:1;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .tile .cap{font-size:11px;color:var(--dim);margin-top:7px;letter-spacing:.02em}
+  .tile.k .num{color:var(--kraft)}
+  .tile.r .num{color:var(--rad)}
+  .tile.n .num{color:var(--text)}
+
+  /* Zuletzt-Feed */
+  .feed{background:var(--surface);border:1px solid var(--line);border-radius:22px;
+    overflow:hidden}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;
+    border-bottom:1px solid var(--line);text-decoration:none;color:inherit}
+  .row:last-child{border-bottom:none}
+  .ic{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;
+    font-size:18px;flex:0 0 auto}
+  .ic.k{background:rgba(205,253,52,.13)}
+  .ic.r{background:rgba(55,215,244,.13)}
+  .ic.w{background:rgba(252,180,75,.13)}
+  .row .body{flex:1 1 auto;min-width:0}
+  .row .t{font-weight:600;font-size:15px;letter-spacing:-.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .s{font-size:12.5px;color:var(--dim);margin-top:3px;
+    font-variant-numeric:tabular-nums}
+  .row .s .accent{color:var(--dim)}
+  .row.k .t{}
+  .tag{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+    padding:4px 8px;border-radius:7px;flex:0 0 auto}
+  .tag.k{color:var(--kraft);background:rgba(205,253,52,.1)}
+  .tag.r{color:var(--rad);background:rgba(55,215,244,.1)}
+  .tag.w{color:var(--wandern);background:rgba(252,180,75,.1)}
+
+  /* untere Navi */
+  .nav{
+    flex:0 0 auto;display:grid;grid-template-columns:repeat(5,1fr);
+    background:rgba(12,13,14,.86);backdrop-filter:blur(16px);
+    border-top:1px solid var(--line);padding:10px 8px 20px;
+  }
+  .nav a{display:flex;flex-direction:column;align-items:center;gap:5px;
+    text-decoration:none;color:var(--dim-2);font-size:10px;letter-spacing:.02em}
+  .nav a svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .nav a.on{color:var(--kraft)}
+
+  .caption{margin-top:22px;text-align:center;color:var(--dim-2);font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase}
+
+  /* sanfter Auftritt */
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .anim{opacity:0;animation:rise .55s cubic-bezier(.2,.7,.2,1) forwards}
+  .d1{animation-delay:.04s}.d2{animation-delay:.1s}.d3{animation-delay:.17s}
+  .d4{animation-delay:.24s}.d5{animation-delay:.31s}
+  @media (prefers-reduced-motion:reduce){.anim{animation:none;opacity:1}}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="app">
+
+      <div class="top anim d1">
+        <div class="brand"><span class="dot"></span>gogadon</div>
+        <div class="date">Sa · 4. Juli</div>
+      </div>
+
+      <div class="greet anim d1">
+        <h1>Moin, Manuel.</h1>
+        <p>Bereit, wenn du's bist.</p>
+      </div>
+
+      <div class="hero anim d2">
+        <span class="eyebrow"><span class="pip"></span>Heute · Kraft</span>
+        <h2>Beine · Nacken</h2>
+        <div class="meta">8 Übungen · 2 Cardio · ~55 min</div>
+        <button class="cta">Einheit starten
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#101300" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+
+      <p class="label anim d3">Diese Woche</p>
+      <div class="tiles anim d3">
+        <div class="tile k"><div class="num">37,7<span style="font-size:13px"> t</span></div><div class="cap">Volumen Kraft</div></div>
+        <div class="tile r"><div class="num">54<span style="font-size:13px"> km</span></div><div class="cap">Rad</div></div>
+        <div class="tile n"><div class="num">4</div><div class="cap">Einheiten</div></div>
+      </div>
+
+      <p class="label anim d4">Zuletzt</p>
+      <div class="feed anim d4">
+        <a class="row k">
+          <div class="ic k">🏋️</div>
+          <div class="body">
+            <div class="t">Beine · Nacken</div>
+            <div class="s">37,7 t bewegt · 10 Übungen</div>
+          </div>
+          <span class="tag k">Kraft</span>
+        </a>
+        <a class="row r">
+          <div class="ic r">🚴</div>
+          <div class="body">
+            <div class="t">E-Bike Tour</div>
+            <div class="s">24,3 km · 312 hm · Ø 118 bpm</div>
+          </div>
+          <span class="tag r">Rad</span>
+        </a>
+        <a class="row w">
+          <div class="ic w">🥾</div>
+          <div class="body">
+            <div class="t">Wanderung Nordhelle</div>
+            <div class="s">8,2 km · 240 hm · 1:52 h</div>
+          </div>
+          <span class="tag w">Wandern</span>
+        </a>
+      </div>
+
+      <p class="caption anim d5">Konzept · frischer Anstrich</p>
+
+    </div>
+
+    <nav class="nav anim d5">
+      <a class="on"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9"/></svg>Start</a>
+      <a><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>Heute</a>
+      <a><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16"/></svg>Plan</a>
+      <a><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-8"/></svg>Verlauf</a>
+      <a><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6"/></svg>Körper</a>
+    </nav>
+  </div>
+</body>
+</html>
